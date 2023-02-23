@@ -1,0 +1,2 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
+  io.axoniq.inspector.starter.AxonInspectorAutoConfiguration
