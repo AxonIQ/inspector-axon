@@ -6,16 +6,24 @@
 
     <groupId>io.axoniq.inspector.connectors</groupId>
     <artifactId>inspector-connectors-parent</artifactId>
-    <packaging>pom</packaging>
     <version>0.0.1-SNAPSHOT</version>
-    <name>AxonIQ - Inspector Connectors</name>
-    <description>Project containing several connectors to Inspector Axon</description>
 
     <modules>
         <module>api</module>
         <module>framework-starter</module>
         <module>framework-module</module>
     </modules>
+    <packaging>pom</packaging>
+
+    <name>AxonIQ - Inspector Connectors</name>
+    <description>Project containing several connectors to Inspector Axon</description>
+
+    <inceptionYear>2022</inceptionYear>
+    <url>https://axoniq.io/</url>
+    <issueManagement>
+        <system>GitHub</system>
+        <url>https://github.com/AxonIQ/inspector-connectors/issues</url>
+    </issueManagement>
 
     <properties>
         <maven.compiler.source>8</maven.compiler.source>
@@ -69,13 +77,6 @@
         </dependency>
     </dependencies>
 
-    <repositories>
-        <repository>
-            <id>axoniq-nexus</id>
-            <url>https://nexus.dev.axoniq.net/repository/products/</url>
-        </repository>
-    </repositories>
-
     <build>
         <plugins>
             <plugin>
@@ -124,4 +125,73 @@
             </plugin>
         </plugins>
     </build>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>sonatype</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <uniqueVersion>true</uniqueVersion>
+        </snapshotRepository>
+        <repository>
+            <id>sonatype</id>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
+            <uniqueVersion>false</uniqueVersion>
+        </repository>
+    </distributionManagement>
+
+    <repositories>
+        <repository>
+            <id>axoniq-nexus</id>
+            <url>https://nexus.dev.axoniq.net/repository/products/</url>
+        </repository>
+        <repository>
+            <id>sonatype</id>
+            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <snapshots>
+                <enabled>true</enabled>
+                <checksumPolicy>fail</checksumPolicy>
+                <updatePolicy>always</updatePolicy>
+            </snapshots>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+        </repository>
+    </repositories>
+
+    <scm>
+        <connection>scm:git:git://github.com/AxonIQ/inspector-connectors.git</connection>
+        <developerConnection>scm:git:git@github.com:AxonIQ/inspector-connectors.git</developerConnection>
+        <url>https://github.com/AxonIQ/inspector-connectors</url>
+        <tag>HEAD</tag>
+    </scm>
+
+    <developers>
+        <developer>
+            <name>Gerard Klijs</name>
+            <email>gerard.klijs@axoniq.io</email>
+            <organization>AxonIQ</organization>
+            <organizationUrl>https://axoniq.io</organizationUrl>
+            <roles>
+                <role>Developer</role>
+            </roles>
+        </developer>
+        <developer>
+            <name>Mitchell Herrijgers</name>
+            <email>mitchell.herrijgers@axoniq.io</email>
+            <organization>AxonIQ</organization>
+            <organizationUrl>https://axoniq.io</organizationUrl>
+            <roles>
+                <role>Developer</role>
+            </roles>
+        </developer>
+        <developer>
+            <name>Steven van Beelen</name>
+            <email>steven.vanbeelen@axoniq.io</email>
+            <organization>AxonIQ</organization>
+            <organizationUrl>https://axoniq.io</organizationUrl>
+            <roles>
+                <role>Developer</role>
+            </roles>
+        </developer>
+    </developers>
 </project>
