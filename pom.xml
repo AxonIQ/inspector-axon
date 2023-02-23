@@ -27,7 +27,7 @@
         <axon.version>4.7.0</axon.version>
 
         <projectreactor.version>3.5.3</projectreactor.version>
-        <spring-boot.version>2.7.9</spring-boot.version>
+        <spring-boot.version>3.0.2</spring-boot.version>
     </properties>
 
     <dependencyManagement>
