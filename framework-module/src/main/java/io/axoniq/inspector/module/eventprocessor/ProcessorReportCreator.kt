@@ -1,7 +1,22 @@
+/*
+ * Copyright (c) 2022-2023. Inspector Axon
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package io.axoniq.inspector.module.eventprocessor
 
 import io.axoniq.inspector.api.*
-import mu.KotlinLogging
 import org.axonframework.common.ReflectionUtils
 import org.axonframework.config.EventProcessingConfiguration
 import org.axonframework.eventhandling.EventTrackerStatus
@@ -14,7 +29,6 @@ class ProcessorReportCreator(
     private val processingConfig: EventProcessingConfiguration,
     private val metricsRegistry: ProcessorMetricsRegistry,
 ) {
-    private val logger = KotlinLogging.logger { }
 
     fun createReport() = ProcessorStatusReport(
         processingConfig.eventProcessors()
@@ -23,17 +37,20 @@ class ProcessorReportCreator(
                 val sep = entry.value as StreamingEventProcessor
                 ProcessorStatus(
                     entry.key,
-                    listOf(ProcessingGroupStatus(
-                        entry.key,
-                        processingConfig.deadLetterQueue(entry.key).map { it.amountOfSequences() }.orElse(null)
-                    )),
+                    listOf(
+                        ProcessingGroupStatus(
+                            entry.key,
+                            processingConfig.deadLetterQueue(entry.key).map { it.amountOfSequences() }.orElse(null)
+                        )
+                    ),
                     sep.tokenStoreIdentifier,
                     sep.toType(),
                     sep.isRunning,
                     sep.isError,
                     sep.maxCapacity(),
                     sep.processingStatus().filterValues { !it.isErrorState }.size,
-                    processingConfig.tokenStore(entry.key).fetchSegments(entry.key).size, // TODO This will do a query to the TokenStore for every report! Think of optimizing this.
+                    // TODO This will do a query to the TokenStore for every report! Think of optimizing this.
+                    processingConfig.tokenStore(entry.key).fetchSegments(entry.key).size,
                     sep.processingStatus().map { (_, segment) -> segment.toStatus() },
                     sep.messageSource()?.createHeadToken()?.position()?.orElse(-1) ?: -1,
                     metricsRegistry.ingestLatencyForProcessor(entry.key).getValue(),
@@ -43,13 +60,18 @@ class ProcessorReportCreator(
     )
 
     private fun StreamingEventProcessor.messageSource(): StreamableMessageSource<*>? {
-        if(this is TrackingEventProcessor) {
-            return ReflectionUtils.getFieldValue(TrackingEventProcessor::class.java.getDeclaredField("messageSource"), this)
+        if (this is TrackingEventProcessor) {
+            return ReflectionUtils.getFieldValue(
+                TrackingEventProcessor::class.java.getDeclaredField("messageSource"),
+                this
+            )
         }
-        if(this is PooledStreamingEventProcessor) {
-            return ReflectionUtils.getFieldValue(PooledStreamingEventProcessor::class.java.getDeclaredField("messageSource"), this)
+        if (this is PooledStreamingEventProcessor) {
+            return ReflectionUtils.getFieldValue(
+                PooledStreamingEventProcessor::class.java.getDeclaredField("messageSource"),
+                this
+            )
         }
-
         return null
     }
 
@@ -72,4 +94,3 @@ class ProcessorReportCreator(
         position = this.currentPosition.orElse(-1L),
     )
 }
-
