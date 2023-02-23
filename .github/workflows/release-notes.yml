@@ -4,11 +4,6 @@ on:
   milestone:
     types: [closed]
 
-env:
-  CA_FILE: /tmp/ca.pem
-  URL: https://discuss.axoniq.io/posts.json
-  CATEGORY: 6 # id of `Announcements` category in Discuss
-
 jobs:
   create-release-notes:
     runs-on: ubuntu-latest
