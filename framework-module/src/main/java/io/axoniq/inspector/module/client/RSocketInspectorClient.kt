@@ -36,7 +36,6 @@ import reactor.netty.tcp.TcpClient
 import java.lang.management.ManagementFactory
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
-import kotlin.math.log
 
 class RSocketInspectorClient(
     private val properties: AxonInspectorProperties,
@@ -67,12 +66,16 @@ class RSocketInspectorClient(
 
     fun send(route: String, payload: Any): Mono<Void> {
         if (!connected) {
-            return Mono.error { IllegalStateException("Connection to Inspector Axon is interrupted") }
+            return Mono.empty()
         }
-        return rsocket.requestResponse(DefaultPayload.create(encodePayload(payload), createRoutingMetadata(route)))
-            .doOnError { error ->
-                logger.warn("Was unable to send request to Inspector Axon. Route: {}", route, error)
-            }.then()
+        return rsocket
+            .requestResponse(DefaultPayload.create(encodePayload(payload), createRoutingMetadata(route)))
+            .doOnError {
+                if(it.message!!.contains("Access Denied")) {
+                    logger.info("Was unable to send call to Inspector Axon since authentication was incorrect!")
+                }
+            }
+            .then()
     }
 
     private fun createRoutingMetadata(route: String): CompositeByteBuf {
@@ -153,13 +156,15 @@ class RSocketInspectorClient(
                     createAuthenticationMetadata(authentication)
                 )
             )
-            .acceptor { setup, sendingRSocket ->
-                sendingRSocket.onClose()
-                    .doOnError { logger.info("error", it) }
-                    .subscribe()
+            .acceptor { _, _ ->
                 Mono.just(object : RSocket {
                     override fun requestResponse(payload: Payload): Mono<Payload> {
                         val route = routeFromPayload(payload)
+                        if (route == "authentication_failed") {
+                            logger.warn("Authentication to Inspector Axon failed. Are your properties set correctly?")
+                            connected = false
+                            return Mono.empty()
+                        }
                         val matchingHandler = handlers.firstOrNull { it.route == route }
                             ?: throw IllegalArgumentException("No handler registered for route $route")
                         val result = when (matchingHandler) {
