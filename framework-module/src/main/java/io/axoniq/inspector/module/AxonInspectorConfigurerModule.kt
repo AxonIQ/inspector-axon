@@ -61,13 +61,13 @@ class AxonInspectorConfigurerModule(
                     it.getComponent(EventProcessorManager::class.java),
                     it.getComponent(ProcessorReportCreator::class.java),
                     it.getComponent(DeadLetterManager::class.java),
+                    it.getComponent(RSocketInspectorClient::class.java)
                 )
             }
             .registerComponent(RSocketInspectorClient::class.java) {
                 RSocketInspectorClient(
                     properties,
                     it.getComponent(SetupPayloadCreator::class.java),
-                    it.getComponent(RSocketMessageResponder::class.java),
                 )
             }
             .registerComponent(ServerProcessorReporter::class.java) {
