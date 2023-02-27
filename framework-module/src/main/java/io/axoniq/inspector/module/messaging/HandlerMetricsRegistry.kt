@@ -18,6 +18,7 @@ package io.axoniq.inspector.module.messaging
 
 import io.axoniq.inspector.api.*
 import io.axoniq.inspector.module.client.RSocketInspectorClient
+import io.axoniq.inspector.module.client.executor
 import io.micrometer.core.instrument.Timer
 import io.micrometer.core.instrument.distribution.HistogramSnapshot
 import io.micrometer.core.instrument.distribution.ValueAtPercentile
@@ -25,7 +26,6 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 class HandlerMetricsRegistry(
@@ -41,7 +41,7 @@ class HandlerMetricsRegistry(
     private val handlerTimerRegistry: MutableMap<HandlerInformation, HandlerTimers> = ConcurrentHashMap()
 
     init {
-        Executors.newScheduledThreadPool(1).scheduleAtFixedRate(this::report, 10, 10, TimeUnit.SECONDS)
+        executor.scheduleAtFixedRate(this::report, 10, 10, TimeUnit.SECONDS)
     }
 
     data class HandlerTimers(

@@ -16,13 +16,11 @@
 
 package io.axoniq.inspector.module.client
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import io.axoniq.inspector.api.InspectorClientAuthentication
 import io.axoniq.inspector.api.InspectorClientIdentifier
 import io.axoniq.inspector.module.AxonInspectorProperties
 import io.netty.buffer.ByteBufAllocator
 import io.netty.buffer.CompositeByteBuf
-import io.rsocket.Payload
 import io.rsocket.RSocket
 import io.rsocket.core.RSocketConnector
 import io.rsocket.metadata.*
@@ -34,31 +32,19 @@ import org.slf4j.LoggerFactory
 import reactor.core.publisher.Mono
 import reactor.netty.tcp.TcpClient
 import java.lang.management.ManagementFactory
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
+@Suppress("MemberVisibilityCanBePrivate")
 class RSocketInspectorClient(
     private val properties: AxonInspectorProperties,
     private val setupPayloadCreator: SetupPayloadCreator,
+    private val registrar: RSocketHandlerRegistrar,
     private val nodeName: String = ManagementFactory.getRuntimeMXBean().name,
 ) : Lifecycle {
-    private val handlers: MutableList<RegisteredRsocketMessageHandler> = mutableListOf()
-
-    fun registerHandlerWithoutPayload(route: String, handler: () -> Any) {
-        handlers.add(PayloadlessRegisteredRsocketMessageHandler(route, handler))
-    }
-
-    fun <T> registerHandlerWithPayload(route: String, payloadType: Class<T>, handler: (T) -> Any) {
-        handlers.add(PayloadRegisteredRsocketMessageHandler(route, payloadType, handler))
-    }
-
     private val logger = LoggerFactory.getLogger(this::class.java)
-    private val mapper = ObjectMapper().findAndRegisterModules()
-    private val executor = Executors.newScheduledThreadPool(1);
 
     private lateinit var rsocket: RSocket
     private var connected = false
-    private var retries = 0
 
     override fun registerLifecycleHandlers(registry: Lifecycle.LifecycleRegistry) {
         registry.onStart(Phase.EXTERNAL_CONNECTIONS, this::start)
@@ -71,50 +57,11 @@ class RSocketInspectorClient(
         return rsocket
             .requestResponse(DefaultPayload.create(encodePayload(payload), createRoutingMetadata(route)))
             .doOnError {
-                if(it.message!!.contains("Access Denied")) {
+                if (it.message!!.contains("Access Denied")) {
                     logger.info("Was unable to send call to Inspector Axon since authentication was incorrect!")
                 }
             }
             .then()
-    }
-
-    private fun createRoutingMetadata(route: String): CompositeByteBuf {
-        val metadata: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
-        val routingMetadata = TaggingMetadataCodec.createRoutingMetadata(ByteBufAllocator.DEFAULT, listOf(route))
-        CompositeMetadataCodec.encodeAndAddMetadata(
-            metadata,
-            ByteBufAllocator.DEFAULT,
-            WellKnownMimeType.MESSAGE_RSOCKET_ROUTING,
-            routingMetadata.content
-        )
-        return metadata
-    }
-
-    private fun encodePayload(payload: Any): CompositeByteBuf {
-        val payloadBuffer: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
-        payloadBuffer.writeBytes(mapper.writeValueAsBytes(payload))
-        return payloadBuffer
-
-    }
-
-    private fun createAuthenticationMetadata(auth: InspectorClientAuthentication): CompositeByteBuf {
-        val metadata: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
-        val routingMetadata = TaggingMetadataCodec.createRoutingMetadata(ByteBufAllocator.DEFAULT, listOf("client"))
-        val authMetadata = ByteBufAllocator.DEFAULT.compositeBuffer()
-        authMetadata.writeBytes(auth.toBearerToken().toByteArray())
-        CompositeMetadataCodec.encodeAndAddMetadata(
-            metadata,
-            ByteBufAllocator.DEFAULT,
-            WellKnownMimeType.MESSAGE_RSOCKET_AUTHENTICATION,
-            authMetadata
-        )
-        CompositeMetadataCodec.encodeAndAddMetadata(
-            metadata,
-            ByteBufAllocator.DEFAULT,
-            WellKnownMimeType.MESSAGE_RSOCKET_ROUTING,
-            routingMetadata.content
-        )
-        return metadata
     }
 
     fun start() {
@@ -124,14 +71,13 @@ class RSocketInspectorClient(
                 logger.info("Reconnecting Inspector Axon...")
                 connect()
             }
-        }, 5000, 10000, TimeUnit.MILLISECONDS)
+        }, 1000, 1000, TimeUnit.MILLISECONDS)
     }
 
     fun connect() {
         try {
             rsocket = createRSocket()
         } catch (e: Exception) {
-            retries++
             logger.info("Failed to connect to Inspector Axon", e)
         }
     }
@@ -153,68 +99,34 @@ class RSocketInspectorClient(
             .setupPayload(
                 DefaultPayload.create(
                     encodePayload(setupPayloadCreator.createReport()),
-                    createAuthenticationMetadata(authentication)
+                    createSetupMetadata(authentication)
                 )
             )
-            .acceptor { _, _ ->
-                Mono.just(object : RSocket {
-                    override fun requestResponse(payload: Payload): Mono<Payload> {
-                        val route = routeFromPayload(payload)
-                        if (route == "authentication_failed") {
-                            logger.warn("Authentication to Inspector Axon failed. Are your properties set correctly?")
-                            connected = false
-                            return Mono.empty()
-                        }
-                        val matchingHandler = handlers.firstOrNull { it.route == route }
-                            ?: throw IllegalArgumentException("No handler registered for route $route")
-                        val result = when (matchingHandler) {
-                            is PayloadlessRegisteredRsocketMessageHandler ->
-                                handleMessageWithoutPayload(matchingHandler, route)
-
-                            is PayloadRegisteredRsocketMessageHandler<*> -> {
-                                handleMessageWithPayload(matchingHandler, payload, route)
-                            }
-
-                            else -> throw IllegalArgumentException("Unknown handler type - should not happen!")
-                        }
-                        return Mono.just(result).map { DefaultPayload.create(encodePayload(it)) }
-                    }
-                })
+            .acceptor { _, rsocket ->
+                Mono.just(registrar.createRespondingRSocketFor(rsocket))
             }
             .connect(tcpClientTransport())
             .block()!!
         return rsocket
     }
 
-    private fun handleMessageWithoutPayload(
-        matchingHandler: PayloadlessRegisteredRsocketMessageHandler,
-        route: String,
-    ): Any {
-        logger.info("Received Inspector Axon message for route [$route] without payload")
-        return matchingHandler.handler.invoke()
+    private fun createRoutingMetadata(route: String): CompositeByteBuf {
+        val metadata: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
+        metadata.addRouteMetadata(route)
+        return metadata
     }
 
-    private fun <T> handleMessageWithPayload(
-        matchingHandler: PayloadRegisteredRsocketMessageHandler<T>,
-        payload: Payload,
-        route: String,
-    ): Any {
-        val data = payload.dataUtf8
-        if (matchingHandler.payloadType == String::class.java) {
-            logger.info("Received Inspector Axon message for route [$route] with payload: [{}]", data)
-            return matchingHandler.handler.invoke(data as T)
-        }
-        val payload = mapper.readValue(data, matchingHandler.payloadType)
-        return matchingHandler.handler.invoke(payload)
+    private fun encodePayload(payload: Any): CompositeByteBuf {
+        val payloadBuffer: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
+        payloadBuffer.writeBytes(payloadMapper.writeValueAsBytes(payload))
+        return payloadBuffer
     }
 
-    private fun routeFromPayload(payload: Payload): String {
-        val compositeMetadata = CompositeMetadata(payload.metadata(), false)
-        val routeMetadata =
-            compositeMetadata.firstOrNull { it.mimeType == WellKnownMimeType.MESSAGE_RSOCKET_ROUTING.string }
-                ?: throw IllegalArgumentException("Request contained no route metadata!")
-        return RoutingMetadata(routeMetadata.content).iterator().next()
-            ?: throw IllegalArgumentException("Request contained no route metadata!")
+    private fun createSetupMetadata(auth: InspectorClientAuthentication): CompositeByteBuf {
+        val metadata: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
+        metadata.addRouteMetadata("client")
+        metadata.addAuthMetadata(auth)
+        return metadata
     }
 
     private fun tcpClientTransport() =
@@ -226,11 +138,9 @@ class RSocketInspectorClient(
             .port(properties.port)
             .doOnConnected {
                 logger.info("Inspector Axon connected")
-                retries = 0
-                connected = true
             }
             .doOnConnect {
-                logger.info("Inspector Axon connecting")
+                logger.info("Inspector Axon connecting...")
             }
             .doOnDisconnected {
                 logger.info("Inspector Axon disconnected")
@@ -248,19 +158,4 @@ class RSocketInspectorClient(
             rsocket.dispose()
         }
     }
-
-    private interface RegisteredRsocketMessageHandler {
-        val route: String
-    }
-
-    private data class PayloadRegisteredRsocketMessageHandler<T>(
-        override val route: String,
-        val payloadType: Class<T>,
-        val handler: (T) -> Any
-    ) : RegisteredRsocketMessageHandler
-
-    private data class PayloadlessRegisteredRsocketMessageHandler(
-        override val route: String,
-        val handler: () -> Any
-    ) : RegisteredRsocketMessageHandler
 }
