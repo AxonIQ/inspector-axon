@@ -24,4 +24,5 @@ class AxonInspectorProperties(
     val environmentId: String,
     val accessToken: String,
     val applicationName: String,
+    val threadPoolSize: Int = 1,
 )

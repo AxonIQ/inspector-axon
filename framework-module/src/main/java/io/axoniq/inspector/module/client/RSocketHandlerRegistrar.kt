@@ -16,18 +16,19 @@
 
 package io.axoniq.inspector.module.client
 
-import io.netty.buffer.ByteBufAllocator
-import io.netty.buffer.CompositeByteBuf
+import io.axoniq.inspector.module.client.strategy.RSocketPayloadEncodingStrategy
 import io.rsocket.Payload
 import io.rsocket.RSocket
 import io.rsocket.metadata.CompositeMetadata
 import io.rsocket.metadata.RoutingMetadata
 import io.rsocket.metadata.WellKnownMimeType
-import io.rsocket.util.DefaultPayload
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Mono
 
-class RSocketHandlerRegistrar : RSocket {
+class RSocketHandlerRegistrar(
+    private val encodingStrategy: RSocketPayloadEncodingStrategy
+) : RSocket {
+    private val logger = LoggerFactory.getLogger(this::class.java)
     private val handlers: MutableList<RegisteredRsocketMessageHandler> = mutableListOf()
 
     fun registerHandlerWithoutPayload(route: String, handler: () -> Any) {
@@ -37,8 +38,6 @@ class RSocketHandlerRegistrar : RSocket {
     fun <T> registerHandlerWithPayload(route: String, payloadType: Class<T>, handler: (T) -> Any) {
         handlers.add(PayloadRegisteredRsocketMessageHandler(route, payloadType, handler))
     }
-
-    private val logger = LoggerFactory.getLogger(this::class.java)
 
     fun createRespondingRSocketFor(rSocket: RSocket) = object : RSocket {
         override fun requestResponse(payload: Payload): Mono<Payload> {
@@ -60,7 +59,7 @@ class RSocketHandlerRegistrar : RSocket {
 
                 else -> throw IllegalArgumentException("Unknown handler type - should not happen!")
             }
-            return Mono.just(result).map { DefaultPayload.create(encodePayload(it)) }
+            return Mono.just(result).map { encodingStrategy.encode(it) }
         }
     }
 
@@ -77,19 +76,9 @@ class RSocketHandlerRegistrar : RSocket {
         payload: Payload,
         route: String,
     ): Any {
-        val data = payload.dataUtf8
-        if (matchingHandler.payloadType == String::class.java) {
-            logger.info("Received Inspector Axon message for route [$route] with payload: [{}]", data)
-            return matchingHandler.handler.invoke(data as T)
-        }
-        val payload = payloadMapper.readValue(data, matchingHandler.payloadType)
-        return matchingHandler.handler.invoke(payload)
-    }
-
-    private fun encodePayload(payload: Any): CompositeByteBuf {
-        val payloadBuffer: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
-        payloadBuffer.writeBytes(payloadMapper.writeValueAsBytes(payload))
-        return payloadBuffer
+        val decodedPayload = encodingStrategy.decode(payload, matchingHandler.payloadType)
+        logger.info("Received Inspector Axon message for route [$route] with payload: [{}]", decodedPayload)
+        return matchingHandler.handler.invoke(decodedPayload)
     }
 
     private fun routeFromPayload(payload: Payload): String {

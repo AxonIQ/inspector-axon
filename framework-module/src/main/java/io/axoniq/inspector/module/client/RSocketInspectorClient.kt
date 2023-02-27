@@ -19,19 +19,20 @@ package io.axoniq.inspector.module.client
 import io.axoniq.inspector.api.InspectorClientAuthentication
 import io.axoniq.inspector.api.InspectorClientIdentifier
 import io.axoniq.inspector.module.AxonInspectorProperties
+import io.axoniq.inspector.module.client.strategy.RSocketPayloadEncodingStrategy
 import io.netty.buffer.ByteBufAllocator
 import io.netty.buffer.CompositeByteBuf
 import io.rsocket.RSocket
 import io.rsocket.core.RSocketConnector
 import io.rsocket.metadata.*
 import io.rsocket.transport.netty.client.TcpClientTransport
-import io.rsocket.util.DefaultPayload
 import org.axonframework.lifecycle.Lifecycle
 import org.axonframework.lifecycle.Phase
 import org.slf4j.LoggerFactory
 import reactor.core.publisher.Mono
 import reactor.netty.tcp.TcpClient
 import java.lang.management.ManagementFactory
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 @Suppress("MemberVisibilityCanBePrivate")
@@ -39,6 +40,8 @@ class RSocketInspectorClient(
     private val properties: AxonInspectorProperties,
     private val setupPayloadCreator: SetupPayloadCreator,
     private val registrar: RSocketHandlerRegistrar,
+    private val encodingStrategy: RSocketPayloadEncodingStrategy,
+    private val executor: ScheduledExecutorService,
     private val nodeName: String = ManagementFactory.getRuntimeMXBean().name,
 ) : Lifecycle {
     private val logger = LoggerFactory.getLogger(this::class.java)
@@ -55,7 +58,7 @@ class RSocketInspectorClient(
             return Mono.empty()
         }
         return rsocket
-            .requestResponse(DefaultPayload.create(encodePayload(payload), createRoutingMetadata(route)))
+            .requestResponse(encodingStrategy.encode(payload, createRoutingMetadata(route)))
             .doOnError {
                 if (it.message!!.contains("Access Denied")) {
                     logger.info("Was unable to send call to Inspector Axon since authentication was incorrect!")
@@ -71,12 +74,13 @@ class RSocketInspectorClient(
                 logger.info("Reconnecting Inspector Axon...")
                 connect()
             }
-        }, 1000, 1000, TimeUnit.MILLISECONDS)
+        }, 10000, 10000, TimeUnit.MILLISECONDS)
     }
 
     fun connect() {
         try {
             rsocket = createRSocket()
+            connected = true
         } catch (e: Exception) {
             logger.info("Failed to connect to Inspector Axon", e)
         }
@@ -93,15 +97,12 @@ class RSocketInspectorClient(
             accessToken = properties.accessToken
         )
 
+        val setupPayload =
+            encodingStrategy.encode(setupPayloadCreator.createReport(), createSetupMetadata(authentication))
         val rsocket = RSocketConnector.create()
             .metadataMimeType(WellKnownMimeType.MESSAGE_RSOCKET_COMPOSITE_METADATA.string)
-            .dataMimeType(WellKnownMimeType.APPLICATION_JSON.string)
-            .setupPayload(
-                DefaultPayload.create(
-                    encodePayload(setupPayloadCreator.createReport()),
-                    createSetupMetadata(authentication)
-                )
-            )
+            .dataMimeType(encodingStrategy.getMimeType().string)
+            .setupPayload(setupPayload)
             .acceptor { _, rsocket ->
                 Mono.just(registrar.createRespondingRSocketFor(rsocket))
             }
@@ -114,12 +115,6 @@ class RSocketInspectorClient(
         val metadata: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
         metadata.addRouteMetadata(route)
         return metadata
-    }
-
-    private fun encodePayload(payload: Any): CompositeByteBuf {
-        val payloadBuffer: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
-        payloadBuffer.writeBytes(payloadMapper.writeValueAsBytes(payload))
-        return payloadBuffer
     }
 
     private fun createSetupMetadata(auth: InspectorClientAuthentication): CompositeByteBuf {

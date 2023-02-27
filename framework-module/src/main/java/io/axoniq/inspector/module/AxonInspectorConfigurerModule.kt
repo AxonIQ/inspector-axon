@@ -16,7 +16,12 @@
 
 package io.axoniq.inspector.module
 
-import io.axoniq.inspector.module.client.*
+import io.axoniq.inspector.module.client.RSocketHandlerRegistrar
+import io.axoniq.inspector.module.client.RSocketInspectorClient
+import io.axoniq.inspector.module.client.ServerProcessorReporter
+import io.axoniq.inspector.module.client.SetupPayloadCreator
+import io.axoniq.inspector.module.client.strategy.CborEncodingStrategy
+import io.axoniq.inspector.module.client.strategy.RSocketPayloadEncodingStrategy
 import io.axoniq.inspector.module.eventprocessor.*
 import io.axoniq.inspector.module.messaging.HandlerMetricsRegistry
 import io.axoniq.inspector.module.messaging.InspectorDispatchInterceptor
@@ -25,12 +30,15 @@ import io.axoniq.inspector.module.messaging.InspectorSpanFactory
 import org.axonframework.config.Configurer
 import org.axonframework.config.ConfigurerModule
 import org.axonframework.tracing.SpanFactory
+import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
 
 class AxonInspectorConfigurerModule(
     private val properties: AxonInspectorProperties
 ) : ConfigurerModule {
 
     override fun configureModule(configurer: Configurer) {
+        val executor: ScheduledExecutorService = Executors.newScheduledThreadPool(properties.threadPoolSize);
         configurer
             .registerComponent(ProcessorMetricsRegistry::class.java) {
                 ProcessorMetricsRegistry()
@@ -50,8 +58,13 @@ class AxonInspectorConfigurerModule(
             .registerComponent(DeadLetterManager::class.java) {
                 DeadLetterManager(it.eventProcessingConfiguration(), it.eventSerializer())
             }
+            .registerComponent(RSocketPayloadEncodingStrategy::class.java) {
+                CborEncodingStrategy()
+            }
             .registerComponent(RSocketHandlerRegistrar::class.java) {
-                RSocketHandlerRegistrar()
+                RSocketHandlerRegistrar(
+                    it.getComponent(RSocketPayloadEncodingStrategy::class.java)
+                )
             }
             .registerComponent(RSocketProcessorResponder::class.java) {
                 RSocketProcessorResponder(
@@ -71,16 +84,22 @@ class AxonInspectorConfigurerModule(
                     properties,
                     it.getComponent(SetupPayloadCreator::class.java),
                     it.getComponent(RSocketHandlerRegistrar::class.java),
+                    it.getComponent(RSocketPayloadEncodingStrategy::class.java),
+                    executor,
                 )
             }
             .registerComponent(ServerProcessorReporter::class.java) {
                 ServerProcessorReporter(
                     it.getComponent(RSocketInspectorClient::class.java),
-                    it.getComponent(ProcessorReportCreator::class.java)
+                    it.getComponent(ProcessorReportCreator::class.java),
+                    executor,
                 )
             }
             .registerComponent(HandlerMetricsRegistry::class.java) {
-                HandlerMetricsRegistry(it.getComponent(RSocketInspectorClient::class.java))
+                HandlerMetricsRegistry(
+                    it.getComponent(RSocketInspectorClient::class.java),
+                    executor,
+                )
             }
             .registerComponent(SpanFactory::class.java) {
                 InspectorSpanFactory(it.getComponent(HandlerMetricsRegistry::class.java))

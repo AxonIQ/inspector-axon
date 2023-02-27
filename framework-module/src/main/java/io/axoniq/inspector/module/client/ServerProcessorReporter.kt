@@ -21,11 +21,13 @@ import io.axoniq.inspector.module.eventprocessor.ProcessorReportCreator
 import mu.KotlinLogging
 import org.axonframework.lifecycle.Lifecycle
 import org.axonframework.lifecycle.Phase
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 class ServerProcessorReporter(
     private val client: RSocketInspectorClient,
-    private val processorReportCreator: ProcessorReportCreator
+    private val processorReportCreator: ProcessorReportCreator,
+    private val executor: ScheduledExecutorService,
 ) : Lifecycle {
 
     private val logger = KotlinLogging.logger { }
