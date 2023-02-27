@@ -33,26 +33,21 @@ class ServerProcessorReporter(
     private val logger = KotlinLogging.logger { }
 
     override fun registerLifecycleHandlers(lifecycleRegistry: Lifecycle.LifecycleRegistry) {
-        lifecycleRegistry.onStart(Phase.INSTRUCTION_COMPONENTS, this::scheduleSafeNextReport)
-        lifecycleRegistry.onShutdown(Phase.EXTERNAL_CONNECTIONS, this::setShutDownFlag)
+        lifecycleRegistry.onStart(Phase.INSTRUCTION_COMPONENTS, this::schedule)
     }
 
     fun start() {
-        scheduleSafeNextReport()
+        schedule()
     }
 
-    fun setShutDownFlag() {
-        client.dispose()
-    }
-
-    private fun scheduleSafeNextReport() {
-        executor.schedule({
+    private fun schedule() {
+        executor.scheduleWithFixedDelay({
             try {
                 this.report()
             } catch (e: Exception) {
                 logger.error("Was unable to report processor metrics: {}", e.message)
             }
-        }, 1000, TimeUnit.MILLISECONDS)
+        }, 1000, 1000, TimeUnit.MILLISECONDS)
     }
 
     private fun report() {
