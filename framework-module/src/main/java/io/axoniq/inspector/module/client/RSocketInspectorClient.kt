@@ -17,33 +17,36 @@
 package io.axoniq.inspector.module.client
 
 import io.axoniq.inspector.api.InspectorClientAuthentication
-import io.axoniq.inspector.api.InspectorClientAuthentication.Companion.AUTHENTICATION_MIME_TYPE
 import io.axoniq.inspector.api.InspectorClientIdentifier
-import io.axoniq.inspector.api.RSocketConfiguration
 import io.axoniq.inspector.module.AxonInspectorProperties
-import io.rsocket.SocketAcceptor
+import io.axoniq.inspector.module.client.strategy.RSocketPayloadEncodingStrategy
+import io.netty.buffer.ByteBufAllocator
+import io.netty.buffer.CompositeByteBuf
+import io.rsocket.RSocket
+import io.rsocket.core.RSocketConnector
+import io.rsocket.metadata.*
 import io.rsocket.transport.netty.client.TcpClientTransport
 import org.axonframework.lifecycle.Lifecycle
 import org.axonframework.lifecycle.Phase
 import org.slf4j.LoggerFactory
-import org.springframework.messaging.rsocket.RSocketRequester
-import org.springframework.messaging.rsocket.annotation.support.RSocketMessageHandler
 import reactor.core.publisher.Mono
 import reactor.netty.tcp.TcpClient
-import reactor.util.retry.Retry
 import java.lang.management.ManagementFactory
-import java.time.Duration
+import java.util.concurrent.ScheduledExecutorService
+import java.util.concurrent.TimeUnit
 
+@Suppress("MemberVisibilityCanBePrivate")
 class RSocketInspectorClient(
     private val properties: AxonInspectorProperties,
     private val setupPayloadCreator: SetupPayloadCreator,
-    private val messageResponder: RSocketMessageResponder,
+    private val registrar: RSocketHandlerRegistrar,
+    private val encodingStrategy: RSocketPayloadEncodingStrategy,
+    private val executor: ScheduledExecutorService,
     private val nodeName: String = ManagementFactory.getRuntimeMXBean().name,
 ) : Lifecycle {
-
     private val logger = LoggerFactory.getLogger(this::class.java)
 
-    private lateinit var requester: RSocketRequester
+    private lateinit var rsocket: RSocket
     private var connected = false
 
     override fun registerLifecycleHandlers(registry: Lifecycle.LifecycleRegistry) {
@@ -51,17 +54,39 @@ class RSocketInspectorClient(
     }
 
     fun send(route: String, payload: Any): Mono<Void> {
-        return requester.route(route).data(payload)
-            .retrieveMono(Void::class.java)
-            .doOnError { error ->
-                logger.warn("Was unable to send request to Inspector Axon. Route: {}", route, error)
+        if (!connected) {
+            return Mono.empty()
+        }
+        return rsocket
+            .requestResponse(encodingStrategy.encode(payload, createRoutingMetadata(route)))
+            .doOnError {
+                if (it.message!!.contains("Access Denied")) {
+                    logger.info("Was unable to send call to Inspector Axon since authentication was incorrect!")
+                }
             }
+            .then()
     }
 
     fun start() {
-        val strategies = RSocketConfiguration.createRSocketStrategies()
-        val responder: SocketAcceptor = RSocketMessageHandler.responder(strategies, messageResponder)
+        connect()
+        executor.scheduleWithFixedDelay({
+            if (!connected) {
+                logger.info("Reconnecting Inspector Axon...")
+                connect()
+            }
+        }, 10000, 10000, TimeUnit.MILLISECONDS)
+    }
 
+    fun connect() {
+        try {
+            rsocket = createRSocket()
+            connected = true
+        } catch (e: Exception) {
+            logger.info("Failed to connect to Inspector Axon", e)
+        }
+    }
+
+    private fun createRSocket(): RSocket {
         val authentication = InspectorClientAuthentication(
             identification = InspectorClientIdentifier(
                 workspaceId = properties.workspaceId,
@@ -72,16 +97,31 @@ class RSocketInspectorClient(
             accessToken = properties.accessToken
         )
 
-        requester = RSocketRequester.builder()
-            .setupMetadata(authentication.toBearerToken(), AUTHENTICATION_MIME_TYPE)
-            .setupRoute("client")
-            .setupData(setupPayloadCreator.createReport())
-            .rsocketStrategies(strategies)
-            .rsocketConnector { rSocketConnector ->
-                rSocketConnector.acceptor(responder)
-                    .reconnect(Retry.backoff(Long.MAX_VALUE, Duration.ofSeconds(2)))
+        val setupPayload =
+            encodingStrategy.encode(setupPayloadCreator.createReport(), createSetupMetadata(authentication))
+        val rsocket = RSocketConnector.create()
+            .metadataMimeType(WellKnownMimeType.MESSAGE_RSOCKET_COMPOSITE_METADATA.string)
+            .dataMimeType(encodingStrategy.getMimeType().string)
+            .setupPayload(setupPayload)
+            .acceptor { _, rsocket ->
+                Mono.just(registrar.createRespondingRSocketFor(rsocket))
             }
-            .transport(tcpClientTransport())
+            .connect(tcpClientTransport())
+            .block()!!
+        return rsocket
+    }
+
+    private fun createRoutingMetadata(route: String): CompositeByteBuf {
+        val metadata: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
+        metadata.addRouteMetadata(route)
+        return metadata
+    }
+
+    private fun createSetupMetadata(auth: InspectorClientAuthentication): CompositeByteBuf {
+        val metadata: CompositeByteBuf = ByteBufAllocator.DEFAULT.compositeBuffer()
+        metadata.addRouteMetadata("client")
+        metadata.addAuthMetadata(auth)
+        return metadata
     }
 
     private fun tcpClientTransport() =
@@ -93,10 +133,9 @@ class RSocketInspectorClient(
             .port(properties.port)
             .doOnConnected {
                 logger.info("Inspector Axon connected")
-                connected = true
             }
             .doOnConnect {
-                logger.info("Inspector Axon connecting")
+                logger.info("Inspector Axon connecting...")
             }
             .doOnDisconnected {
                 logger.info("Inspector Axon disconnected")
@@ -110,6 +149,8 @@ class RSocketInspectorClient(
     fun isConnected() = connected
 
     fun dispose() {
-        requester.dispose()
+        if (connected) {
+            rsocket.dispose()
+        }
     }
 }

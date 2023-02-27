@@ -28,12 +28,4 @@
     <artifactId>inspector-axon-api</artifactId>
     <name>Inspector Axon - API</name>
     <description>API module for Inspector Axon</description>
-
-    <dependencies>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-rsocket</artifactId>
-            <scope>provided</scope>
-        </dependency>
-    </dependencies>
 </project>

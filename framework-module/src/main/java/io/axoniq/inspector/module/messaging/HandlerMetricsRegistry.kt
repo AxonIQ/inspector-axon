@@ -25,11 +25,12 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.Executors
+import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
 
 class HandlerMetricsRegistry(
     private val rSocketInspectorClient: RSocketInspectorClient,
+    private val executor: ScheduledExecutorService,
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
     private val meterRegistry = SimpleMeterRegistry()
@@ -41,7 +42,7 @@ class HandlerMetricsRegistry(
     private val handlerTimerRegistry: MutableMap<HandlerInformation, HandlerTimers> = ConcurrentHashMap()
 
     init {
-        Executors.newScheduledThreadPool(1).scheduleAtFixedRate(this::report, 10, 10, TimeUnit.SECONDS)
+        executor.scheduleAtFixedRate(this::report, 10, 10, TimeUnit.SECONDS)
     }
 
     data class HandlerTimers(

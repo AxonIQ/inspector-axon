@@ -16,8 +16,6 @@
 
 package io.axoniq.inspector.api
 
-import io.rsocket.metadata.WellKnownMimeType
-import org.springframework.util.MimeTypeUtils
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -43,9 +41,6 @@ data class InspectorClientAuthentication(
     }
 
     companion object {
-        val AUTHENTICATION_MIME_TYPE =
-            MimeTypeUtils.parseMimeType(WellKnownMimeType.MESSAGE_RSOCKET_AUTHENTICATION.string)
-
         private const val BEARER_PREFIX: String = "Bearer "
         private const val TOKEN_ERROR: String = "Not a valid Bearer token!"
 
