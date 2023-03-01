@@ -114,6 +114,8 @@ class AxonInspectorConfigurerModule(
 
         configurer.onInitialize {
             it.getComponent(ServerProcessorReporter::class.java)
+            it.getComponent(RSocketProcessorResponder::class.java)
+            it.getComponent(RSocketDlqResponder::class.java)
         }
 
         configurer.onStart {

@@ -32,10 +32,12 @@ class RSocketHandlerRegistrar(
     private val handlers: MutableList<RegisteredRsocketMessageHandler> = mutableListOf()
 
     fun registerHandlerWithoutPayload(route: String, handler: () -> Any) {
+        logger.info("Registered Inspector handler for route {}", route)
         handlers.add(PayloadlessRegisteredRsocketMessageHandler(route, handler))
     }
 
     fun <T> registerHandlerWithPayload(route: String, payloadType: Class<T>, handler: (T) -> Any) {
+        logger.info("Registered Inspector handler for route {}", route)
         handlers.add(PayloadRegisteredRsocketMessageHandler(route, payloadType, handler))
     }
 

@@ -53,6 +53,7 @@ class InspectorSpanFactory(
 
         // Addtional metrics that can be registered by other spans
         val additionalMetrics: MutableMap<String, Long> = mutableMapOf()
+        val nestedMetricMap: MutableMap<String, MutableList<String>> = mutableMapOf()
 
         override fun start(): Span {
             timeStarted = System.nanoTime()
@@ -69,8 +70,11 @@ class InspectorSpanFactory(
                     successful = handlerSuccessful,
                     totalDuration = end - timeStarted!!,
                     handlerDuration = timeHandlerEnded!! - timeHandlerStarted!!,
-                    additionalStats = additionalMetrics
-
+                    additionalStats = additionalMetrics.mapValues {
+                        val nested = nestedMetricMap.getOrDefault(it.key, mutableListOf())
+                        val totalTimeToSubtract = nested.sumOf { n -> additionalMetrics[n] ?: 0 }
+                        it.value - totalTimeToSubtract
+                    }
                 )
             }
             ACTIVE_ROOT_SPANS.remove(message.identifier)
@@ -111,7 +115,7 @@ class InspectorSpanFactory(
     override fun createInternalSpan(operationNameSupplier: Supplier<String>): Span {
         val name = operationNameSupplier.get()
         if (name == "LockingRepository.obtainLock") {
-            return TimeRecordingSpan("aggregate_lock")
+            return TimeRecordingSpan("aggregate_lock", "aggregate_load")
         }
         if (name.contains(".load ")) {
             return TimeRecordingSpan("aggregate_load")
@@ -153,7 +157,7 @@ class InspectorSpanFactory(
         }
     }
 
-    class TimeRecordingSpan(private val metricName: String) : Span {
+    class TimeRecordingSpan(private val metricName: String, private val partOfMetricName: String? = null) : Span {
         private var started: Long? = null
         override fun start(): Span {
             started = System.nanoTime()
@@ -167,6 +171,9 @@ class InspectorSpanFactory(
             val ended = System.nanoTime()
             onTopLevelSpanIfActive(CURRENT_MESSAGE_ID.get()) {
                 it.additionalMetrics[metricName] = ended - started!!
+                if(partOfMetricName != null) {
+                    it.nestedMetricMap.computeIfAbsent(partOfMetricName) { mutableListOf() }.add(metricName)
+                }
             }
 
         }
