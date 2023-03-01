@@ -95,7 +95,7 @@ class SetupPayloadCreator(
         "org.axonframework.extensions.springcloud:axon-springcloud",
         "org.axonframework.extensions.tracing:axon-tracing",
         "io.axoniq:axonserver-connector-java",
-        "io.axoniq.inspector:inspector-axon-module",
+        "io.axoniq.inspector.connectors:inspector-framework-module",
     )
 
     private fun versionInformation(): Versions {
