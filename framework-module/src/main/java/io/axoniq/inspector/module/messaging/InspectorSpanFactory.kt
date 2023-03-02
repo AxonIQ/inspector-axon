@@ -16,73 +16,104 @@
 
 package io.axoniq.inspector.module.messaging
 
-import io.axoniq.inspector.api.HandlerInformation
+import io.axoniq.inspector.api.metrics.HandlerStatisticsMetricIdentifier
+import io.axoniq.inspector.api.metrics.Metric
+import io.axoniq.inspector.api.metrics.MetricType
+import io.axoniq.inspector.api.metrics.PreconfiguredMetric
 import org.axonframework.messaging.Message
+import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
 import org.axonframework.tracing.Span
 import org.axonframework.tracing.SpanAttributesProvider
 import org.axonframework.tracing.SpanFactory
+import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Supplier
+
 
 class InspectorSpanFactory(
     private val registry: HandlerMetricsRegistry
 ) : SpanFactory {
+    private val logger = LoggerFactory.getLogger(this::class.java)
     companion object {
         private val NOOP_SPAN = NoopSpan()
-        private val ACTIVE_ROOT_SPANS = ConcurrentHashMap<String, RootProcessingSpan>()
+        private val ACTIVE_ROOT_SPANS = ConcurrentHashMap<String, MeasuringInspectorSpan>()
         private val CURRENT_MESSAGE_ID = ThreadLocal<String>()
 
-        fun onTopLevelSpanIfActive(message: Message<*>, block: (RootProcessingSpan) -> Unit) {
+        fun onTopLevelSpanIfActive(message: Message<*>, block: (MeasuringInspectorSpan) -> Unit) {
             onTopLevelSpanIfActive(message.identifier, block)
         }
 
-        fun onTopLevelSpanIfActive(messageId: String, block: (RootProcessingSpan) -> Unit) {
+        fun onTopLevelSpanIfActive(messageId: String, block: (MeasuringInspectorSpan) -> Unit) {
             ACTIVE_ROOT_SPANS[messageId]?.let(block)
+        }
+
+        fun onTopLevelSpanIfActive(block: (MeasuringInspectorSpan) -> Unit) {
+            if (CURRENT_MESSAGE_ID.get() == null) {
+                return
+            }
+            ACTIVE_ROOT_SPANS[CURRENT_MESSAGE_ID.get()]?.let(block)
         }
     }
 
-    inner class RootProcessingSpan(private val message: Message<*>) : Span {
+    inner class MeasuringInspectorSpan(private val message: Message<*>) : Span {
         private var timeStarted: Long? = null
-        private var spanSuccessful = true
+        private var transactionSuccessful = true
 
         // Fields that should be set by the handler enhancer
-        var timeHandlerStarted: Long? = null
-        var timeHandlerEnded: Long? = null
-        var handlerInformation: HandlerInformation? = null
-        var handlerSuccessful = true
+        private var handlerMetricIdentifier: HandlerStatisticsMetricIdentifier? = null
+        private var handlerSuccessful = true
 
-        // Addtional metrics that can be registered by other spans
-        val additionalMetrics: MutableMap<String, Long> = mutableMapOf()
-        val nestedMetricMap: MutableMap<String, MutableList<String>> = mutableMapOf()
+        // Additional metrics that can be registered by other spans for processors
+        private val metrics: MutableMap<Metric, Long> = mutableMapOf()
+
+        fun registerHandler(handlerMetricIdentifier: HandlerStatisticsMetricIdentifier, time: Long) {
+            this.handlerMetricIdentifier = handlerMetricIdentifier
+            this.registerMetricValue(PreconfiguredMetric.MESSAGE_HANDLER_TIME, time)
+        }
+
+        fun registerMetricValue(metric: Metric, value: Long) {
+            val actualValue = value - metric.breakDownMetrics.sumOf { metrics[it] ?: 0 }
+            metrics[metric] = actualValue
+        }
 
         override fun start(): Span {
             timeStarted = System.nanoTime()
             ACTIVE_ROOT_SPANS[message.identifier] = this
             CURRENT_MESSAGE_ID.set(message.identifier)
+            CurrentUnitOfWork.map {
+                it.onRollback { transactionSuccessful = false }
+            }
             return this
         }
 
         override fun end() {
             val end = System.nanoTime()
-            if (handlerInformation != null && timeStarted != null && timeHandlerStarted != null && timeHandlerEnded != null) {
-                registry.registerMessageHandled(
-                    handler = handlerInformation!!,
-                    successful = handlerSuccessful,
-                    totalDuration = end - timeStarted!!,
-                    handlerDuration = timeHandlerEnded!! - timeHandlerStarted!!,
-                    additionalStats = additionalMetrics.mapValues {
-                        val nested = nestedMetricMap.getOrDefault(it.key, mutableListOf())
-                        val totalTimeToSubtract = nested.sumOf { n -> additionalMetrics[n] ?: 0 }
-                        it.value - totalTimeToSubtract
-                    }
-                )
-            }
             ACTIVE_ROOT_SPANS.remove(message.identifier)
             CURRENT_MESSAGE_ID.remove()
+
+            if (handlerMetricIdentifier == null || timeStarted == null) return
+            if (!CurrentUnitOfWork.isStarted()) {
+                registry.registerMessageHandled(
+                    handler = handlerMetricIdentifier!!,
+                    success = handlerSuccessful,
+                    duration = end - timeStarted!!,
+                    metrics = metrics
+                )
+                return
+            }
+
+            CurrentUnitOfWork.get().onCleanup {
+                registry.registerMessageHandled(
+                    handler = handlerMetricIdentifier!!,
+                    success = handlerSuccessful,
+                    duration = end - timeStarted!!,
+                    metrics = metrics
+                )
+            }
         }
 
         override fun recordException(t: Throwable): Span {
-            spanSuccessful = false
+            transactionSuccessful = false
             return this
         }
     }
@@ -97,11 +128,7 @@ class InspectorSpanFactory(
         isChildTrace: Boolean,
         vararg linkedParents: Message<*>?
     ): Span {
-        val name = operationNameSupplier.get()
-        if (name == "QueryProcessingTask" || name == "AxonServerCommandBus.handle") {
-            return startIfNotActive(parentMessage)
-        }
-        return NOOP_SPAN
+        return startIfNotActive(parentMessage)
     }
 
     override fun createDispatchSpan(
@@ -115,29 +142,20 @@ class InspectorSpanFactory(
     override fun createInternalSpan(operationNameSupplier: Supplier<String>): Span {
         val name = operationNameSupplier.get()
         if (name == "LockingRepository.obtainLock") {
-            return TimeRecordingSpan("aggregate_lock", "aggregate_load")
+            return TimeRecordingSpan(PreconfiguredMetric.AGGREGATE_LOCK_TIME)
         }
         if (name.contains(".load ")) {
-            return TimeRecordingSpan("aggregate_load")
+            return TimeRecordingSpan(PreconfiguredMetric.AGGREGATE_LOAD_TIME)
         }
         if (name.endsWith(".commit")) {
-            return TimeRecordingSpan("events_commit")
+            return TimeRecordingSpan(PreconfiguredMetric.EVENT_COMMIT_TIME)
         }
 
         return NOOP_SPAN
     }
 
     override fun createInternalSpan(operationNameSupplier: Supplier<String>, message: Message<*>): Span {
-        val name = operationNameSupplier.get()
-        if (name.endsWith("Bus.handle")
-            || name == "SimpleQueryBus.query"
-            || name.startsWith("SimpleQueryBus.scatterGather")
-            || name.startsWith("PooledStreamingEventProcessor")
-            || name.startsWith("TrackingEventProcessor")
-        ) {
-            return startIfNotActive(message)
-        }
-        return NOOP_SPAN
+        return startIfNotActive(message)
     }
 
     override fun registerSpanAttributeProvider(provider: SpanAttributesProvider?) {
@@ -153,11 +171,15 @@ class InspectorSpanFactory(
             return NOOP_SPAN
         }
         return ACTIVE_ROOT_SPANS.computeIfAbsent(message.identifier) {
-            RootProcessingSpan(message)
+            MeasuringInspectorSpan(message)
         }
     }
 
-    class TimeRecordingSpan(private val metricName: String, private val partOfMetricName: String? = null) : Span {
+    class TimeRecordingSpan(private val metric: Metric) : Span {
+        init {
+            assert(metric.type == MetricType.TIMER)
+        }
+
         private var started: Long? = null
         override fun start(): Span {
             started = System.nanoTime()
@@ -165,15 +187,12 @@ class InspectorSpanFactory(
         }
 
         override fun end() {
-            if (started == null || CURRENT_MESSAGE_ID.get() == null) {
+            if (started == null) {
                 return
             }
             val ended = System.nanoTime()
-            onTopLevelSpanIfActive(CURRENT_MESSAGE_ID.get()) {
-                it.additionalMetrics[metricName] = ended - started!!
-                if(partOfMetricName != null) {
-                    it.nestedMetricMap.computeIfAbsent(partOfMetricName) { mutableListOf() }.add(metricName)
-                }
+            onTopLevelSpanIfActive {
+                it.registerMetricValue(metric, ended - started!!)
             }
 
         }

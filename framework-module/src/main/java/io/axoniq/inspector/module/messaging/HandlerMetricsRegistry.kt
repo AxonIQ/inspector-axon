@@ -16,12 +16,13 @@
 
 package io.axoniq.inspector.module.messaging
 
-import io.axoniq.inspector.api.*
+import io.axoniq.inspector.api.Routes
+import io.axoniq.inspector.api.metrics.*
 import io.axoniq.inspector.module.client.RSocketInspectorClient
 import io.micrometer.core.instrument.Timer
-import io.micrometer.core.instrument.distribution.HistogramSnapshot
-import io.micrometer.core.instrument.distribution.ValueAtPercentile
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import org.axonframework.lifecycle.Lifecycle
+import org.axonframework.lifecycle.Phase
 import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
@@ -31,77 +32,70 @@ import java.util.concurrent.TimeUnit
 class HandlerMetricsRegistry(
     private val rSocketInspectorClient: RSocketInspectorClient,
     private val executor: ScheduledExecutorService,
-) {
+) : Lifecycle {
     private val logger = LoggerFactory.getLogger(this::class.java)
     private val meterRegistry = SimpleMeterRegistry()
 
-    private val handlerTotalCounterRegistry: MutableMap<HandlerInformation, RollingCountMeasure> = ConcurrentHashMap()
-    private val handlerFailureCounterRegistry: MutableMap<HandlerInformation, RollingCountMeasure> = ConcurrentHashMap()
-    private val dispatcherRegistry: MutableMap<DispatcherInformation, RollingCountMeasure> = ConcurrentHashMap()
+    private val dispatches: MutableMap<DispatcherStatisticIdentifier, RollingCountMeasure> = ConcurrentHashMap()
+    private val handlers: MutableMap<HandlerStatisticsMetricIdentifier, HandlerRegistryStatistics> = ConcurrentHashMap()
+    private val aggregates: MutableMap<AggregateStatisticIdentifier, AggregateRegistryStatistics> = ConcurrentHashMap()
 
-    private val handlerTimerRegistry: MutableMap<HandlerInformation, HandlerTimers> = ConcurrentHashMap()
-
-    init {
-        executor.scheduleAtFixedRate(this::report, 10, 10, TimeUnit.SECONDS)
+    override fun registerLifecycleHandlers(lifecycle: Lifecycle.LifecycleRegistry) {
+        lifecycle.onStart(Phase.INSTRUCTION_COMPONENTS, this::start)
     }
 
-    data class HandlerTimers(
-        val totalTimer: Timer,
-        val handleTimer: Timer,
-        val additionalTimers: MutableMap<String, Timer> = ConcurrentHashMap()
-    )
-
-    private fun report() {
-        try {
-            val stats = getStats()
-            rSocketInspectorClient
-                .send(Routes.MessageFlow.STATS, stats)
-                .block()
-
-        } catch (e: Exception) {
-            logger.warn("No metrics could be reported to Inspector Axon: {}", e.message)
-        }
+    fun start() {
+        executor.scheduleAtFixedRate({
+            try {
+                rSocketInspectorClient.send(Routes.MessageFlow.STATS, getStats()).block()
+            } catch (e: Exception) {
+                logger.warn("No metrics could be reported to Inspector Axon: {}", e.message)
+            }
+        }, 10, 10, TimeUnit.SECONDS)
     }
 
-    private fun HistogramSnapshot.toDistribution(): DistributionStatistics {
-        val percentiles = percentileValues()
-        return DistributionStatistics(
-            min = percentiles.ofPercentile(0.01),
-            percentile90 = percentiles.ofPercentile(0.90),
-            percentile95 = percentiles.ofPercentile(0.95),
-            median = percentiles.ofPercentile(0.50),
-            mean = mean(TimeUnit.MILLISECONDS),
-            max = percentiles.ofPercentile(1.00),
-        )
-    }
-
-    private fun getStats(): ClientMessageStatisticsReport {
-        val flow = ClientMessageStatisticsReport(
-            handlers = handlerTimerRegistry.entries.map {
-                HandlerStatistics(
-                    it.key, MessageHandlerBucketStatistics(
-                        handlerTotalCounterRegistry[it.key]?.value() ?: 0.0,
-                        handlerFailureCounterRegistry[it.key]?.value() ?: 0.0,
+    private fun getStats(): StatisticReport {
+        val flow = StatisticReport(
+            handlers = handlers.entries.map {
+                HandlerStatisticsWithIdentifier(
+                    it.key, HandlerStatistics(
+                        it.value.totalCount.value(),
+                        it.value.failureCount.value(),
                         it.value.totalTimer.takeSnapshot().toDistribution(),
-                        it.value.handleTimer.takeSnapshot().toDistribution(),
-                        it.value.additionalTimers.mapValues { (k, v) -> v.takeSnapshot().toDistribution() }
+                        it.value.metrics.map { (k, v) -> k.fullIdentifier to v.takeSnapshot().toDistribution() }.toMap()
                     )
                 )
             },
-            dispatchers = dispatcherRegistry.entries.map { DispatcherStatistics(it.key, it.value.value()) })
+            dispatchers = dispatches.entries.map {
+                DispatcherStatisticsWithIdentifier(
+                    it.key,
+                    DispatcherStatistics(it.value.value())
+                )
+            },
+            aggregates = aggregates.entries.map {
+                AggregateStatisticsWithIdentifier(
+                    it.key, AggregateStatistics(
+                        it.value.totalCount.value(),
+                        it.value.failureCount.value(),
+                        it.value.totalTimer.takeSnapshot().toDistribution(),
+                        it.value.metrics.map { (k, v) -> k.fullIdentifier to v.takeSnapshot().toDistribution() }.toMap()
+                    )
+                )
+            })
 
-        handlerTotalCounterRegistry.values.forEach { it.incrementWindow() }
-        handlerFailureCounterRegistry.values.forEach { it.incrementWindow() }
-        dispatcherRegistry.values.forEach { it.incrementWindow() }
+        handlers.values.forEach {
+            it.totalCount.incrementWindow()
+            it.failureCount.incrementWindow()
+        }
+        dispatches.values.forEach { it.incrementWindow() }
+        aggregates.values.forEach {
+            it.totalCount.incrementWindow()
+            it.failureCount.incrementWindow()
+        }
         return flow
     }
 
-    private fun Array<ValueAtPercentile>.ofPercentile(percentile: Double): Double {
-        return this.firstOrNull { pc -> pc.percentile() == percentile }
-            ?.value(TimeUnit.MILLISECONDS)!!
-    }
-
-    private fun createTimer(handler: HandlerInformation, name: String): Timer {
+    private fun createTimer(handler: Any, name: String): Timer {
         return Timer
             .builder("${handler}_timer_$name")
             .publishPercentiles(1.00, 0.95, 0.90, 0.50, 0.01)
@@ -111,41 +105,71 @@ class HandlerMetricsRegistry(
     }
 
     fun registerMessageHandled(
-        handler: HandlerInformation,
-        successful: Boolean,
-        totalDuration: Long,
-        handlerDuration: Long,
-        additionalStats: Map<String, Long>
+        handler: HandlerStatisticsMetricIdentifier,
+        success: Boolean,
+        duration: Long,
+        metrics: Map<Metric, Long>
     ) {
-        val timers = handlerTimerRegistry.computeIfAbsent(handler) { _ ->
-            HandlerTimers(
-                createTimer(handler, "total"),
-                createTimer(handler, "handler"),
-            )
+        val handlerStats = handlers.computeIfAbsent(handler) { _ ->
+            HandlerRegistryStatistics(createTimer(handler, "total"))
         }
-        timers.totalTimer.record(totalDuration, TimeUnit.NANOSECONDS)
-        timers.handleTimer.record(handlerDuration, TimeUnit.NANOSECONDS)
-        additionalStats.forEach { (name, value) ->
-            timers.additionalTimers.computeIfAbsent(name) { createTimer(handler, name) }
-                .record(value, TimeUnit.NANOSECONDS)
+        handlerStats.totalTimer.record(duration, TimeUnit.NANOSECONDS)
+        metrics.filter { it.key.targetTypes.contains(MetricTargetType.HANDLER) }
+            .forEach { (metric, value) ->
+                handlerStats.metrics
+                    .computeIfAbsent(metric) { createTimer(handler, metric.fullIdentifier) }
+                    .record(value, metric.type.distributionUnit)
+            }
+
+        handlerStats.totalCount.increment()
+        if (!success) {
+            handlerStats.failureCount.increment()
         }
 
-        handlerTotalCounterRegistry.computeIfAbsent(handler) { _ ->
-            RollingCountMeasure()
-        }.increment()
-        if (!successful) {
-            handlerFailureCounterRegistry.computeIfAbsent(handler) { _ ->
-                RollingCountMeasure()
-            }.increment()
+        if (handler.type == HandlerType.Aggregate) {
+            val id = AggregateStatisticIdentifier(handler.component!!)
+            val aggStats = aggregates.computeIfAbsent(id) { _ ->
+                AggregateRegistryStatistics(createTimer(id, "total"))
+            }
+
+            metrics.filter { it.key.targetTypes.contains(MetricTargetType.AGGREGATE) }.forEach { (metric, value) ->
+                aggStats.metrics
+                    .computeIfAbsent(metric) { createTimer(id, metric.fullIdentifier) }
+                    .record(value, metric.type.distributionUnit)
+            }
+            aggStats.totalTimer.record(duration, TimeUnit.NANOSECONDS)
+            aggStats.totalCount.increment()
+            if (!success) {
+                handlerStats.failureCount.increment()
+            }
+
         }
     }
 
     fun registerMessageDispatchedDuringHandling(
-        dispatcher: DispatcherInformation,
+        dispatcher: DispatcherStatisticIdentifier,
     ) {
-        dispatcherRegistry.computeIfAbsent(dispatcher) { _ ->
+        dispatches.computeIfAbsent(dispatcher) { _ ->
             RollingCountMeasure()
         }.increment()
     }
+
+    /**
+     * Holder object of a handler and all its related stats.
+     * Includes total time, and the broken down metrics
+     */
+    private data class HandlerRegistryStatistics(
+        val totalTimer: Timer,
+        val totalCount: RollingCountMeasure = RollingCountMeasure(),
+        val failureCount: RollingCountMeasure = RollingCountMeasure(),
+        val metrics: MutableMap<Metric, Timer> = ConcurrentHashMap()
+    )
+
+    private data class AggregateRegistryStatistics(
+        val totalTimer: Timer,
+        val totalCount: RollingCountMeasure = RollingCountMeasure(),
+        val failureCount: RollingCountMeasure = RollingCountMeasure(),
+        val metrics: MutableMap<Metric, Timer> = ConcurrentHashMap()
+    )
 }
 

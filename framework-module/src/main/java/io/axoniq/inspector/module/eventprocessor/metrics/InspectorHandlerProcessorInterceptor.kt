@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package io.axoniq.inspector.module.messaging
+package io.axoniq.inspector.module.eventprocessor.metrics
 
-import io.axoniq.inspector.module.eventprocessor.ProcessorMetricsRegistry
+import io.axoniq.inspector.module.messaging.INSPECTOR_PROCESSING_GROUP
 import org.axonframework.eventhandling.EventMessage
 import org.axonframework.messaging.InterceptorChain
 import org.axonframework.messaging.Message

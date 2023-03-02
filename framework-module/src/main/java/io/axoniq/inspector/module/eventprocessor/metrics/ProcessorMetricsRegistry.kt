@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.axoniq.inspector.module.eventprocessor
+package io.axoniq.inspector.module.eventprocessor.metrics
 
 import java.time.Clock
 import java.util.concurrent.ConcurrentHashMap
