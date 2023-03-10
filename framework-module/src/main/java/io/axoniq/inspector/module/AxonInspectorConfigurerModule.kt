@@ -123,18 +123,19 @@ class AxonInspectorConfigurerModule(
             it.getComponent(RSocketProcessorResponder::class.java)
             it.getComponent(RSocketDlqResponder::class.java)
 
-            it.findModules(AggregateConfiguration::class.java).forEach { ac ->
-                val repo = ac.repository()
-                if (repo is EventSourcingRepository) {
-                    val field = ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
-                    if (field != null) {
-                        val current = ReflectionUtils.getFieldValue<EventStore>(field, repo)
-                        if (current !is InspectorWrappedEventStore) {
-                            ReflectionUtils.setFieldValue(field, repo, InspectorWrappedEventStore(current))
+            it.onStart {
+                it.findModules(AggregateConfiguration::class.java).forEach { ac ->
+                    val repo = ac.repository()
+                    if (repo is EventSourcingRepository) {
+                        val field = ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
+                        if (field != null) {
+                            val current = ReflectionUtils.getFieldValue<EventStore>(field, repo)
+                            if (current !is InspectorWrappedEventStore) {
+                                ReflectionUtils.setFieldValue(field, repo, InspectorWrappedEventStore(current))
+                            }
                         }
                     }
                 }
-                repo
             }
         }
 
