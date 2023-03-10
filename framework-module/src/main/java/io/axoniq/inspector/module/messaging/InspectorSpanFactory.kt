@@ -128,7 +128,11 @@ class InspectorSpanFactory(
         isChildTrace: Boolean,
         vararg linkedParents: Message<*>?
     ): Span {
-        return startIfNotActive(parentMessage)
+        val name = operationNameSupplier.get()
+        if (name == "QueryProcessingTask" || name == "AxonServerCommandBus.handle") {
+            return startIfNotActive(parentMessage)
+        }
+        return NOOP_SPAN
     }
 
     override fun createDispatchSpan(
@@ -155,7 +159,16 @@ class InspectorSpanFactory(
     }
 
     override fun createInternalSpan(operationNameSupplier: Supplier<String>, message: Message<*>): Span {
-        return startIfNotActive(message)
+        val name = operationNameSupplier.get()
+        if (name.endsWith("Bus.handle")
+            || name == "SimpleQueryBus.query"
+            || name.startsWith("SimpleQueryBus.scatterGather")
+            || name.startsWith("PooledStreamingEventProcessor")
+            || name.startsWith("TrackingEventProcessor")
+        ) {
+            return startIfNotActive(message)
+        }
+        return NOOP_SPAN
     }
 
     override fun registerSpanAttributeProvider(provider: SpanAttributesProvider?) {
