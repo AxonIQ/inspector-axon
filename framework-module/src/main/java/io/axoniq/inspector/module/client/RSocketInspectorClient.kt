@@ -68,13 +68,12 @@ class RSocketInspectorClient(
     }
 
     fun start() {
-        connect()
         executor.scheduleWithFixedDelay({
             if (!connected) {
                 logger.info("Reconnecting Inspector Axon...")
                 connect()
             }
-        }, 10000, 10000, TimeUnit.MILLISECONDS)
+        }, 2500, 10000, TimeUnit.MILLISECONDS)
     }
 
     fun connect() {
