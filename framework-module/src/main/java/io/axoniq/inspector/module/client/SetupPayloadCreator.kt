@@ -100,7 +100,7 @@ class SetupPayloadCreator(
 
     private fun versionInformation(): Versions {
         return Versions(
-            frameworkVersion = resolveVersion("org.axonframework:axon-messaging")!!,
+            frameworkVersion = resolveVersion("org.axonframework:axon-messaging") ?: "Unknown",
             moduleVersions = dependenciesToCheck.map { ModuleVersion(it, resolveVersion(it)) }
         )
     }
