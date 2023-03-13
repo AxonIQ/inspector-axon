@@ -16,10 +16,7 @@
 
 package io.axoniq.inspector.module.messaging
 
-import io.axoniq.inspector.api.metrics.HandlerStatisticsMetricIdentifier
-import io.axoniq.inspector.api.metrics.Metric
-import io.axoniq.inspector.api.metrics.MetricType
-import io.axoniq.inspector.api.metrics.PreconfiguredMetric
+import io.axoniq.inspector.api.metrics.*
 import org.axonframework.messaging.Message
 import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
 import org.axonframework.tracing.Span
@@ -34,6 +31,7 @@ class InspectorSpanFactory(
     private val registry: HandlerMetricsRegistry
 ) : SpanFactory {
     private val logger = LoggerFactory.getLogger(this::class.java)
+
     companion object {
         private val NOOP_SPAN = NoopSpan()
         private val ACTIVE_ROOT_SPANS = ConcurrentHashMap<String, MeasuringInspectorSpan>()
@@ -62,6 +60,7 @@ class InspectorSpanFactory(
         // Fields that should be set by the handler enhancer
         private var handlerMetricIdentifier: HandlerStatisticsMetricIdentifier? = null
         private var handlerSuccessful = true
+        private var dispatchedMessages = mutableListOf<MessageIdentifier>()
 
         // Additional metrics that can be registered by other spans for processors
         private val metrics: MutableMap<Metric, Long> = mutableMapOf()
@@ -69,6 +68,10 @@ class InspectorSpanFactory(
         fun registerHandler(handlerMetricIdentifier: HandlerStatisticsMetricIdentifier, time: Long) {
             this.handlerMetricIdentifier = handlerMetricIdentifier
             this.registerMetricValue(PreconfiguredMetric.MESSAGE_HANDLER_TIME, time)
+        }
+
+        fun registerMessageDispatched(message: MessageIdentifier) {
+            dispatchedMessages.add(message)
         }
 
         fun registerMetricValue(metric: Metric, value: Long) {
@@ -99,6 +102,11 @@ class InspectorSpanFactory(
                     duration = end - timeStarted!!,
                     metrics = metrics
                 )
+                dispatchedMessages.forEach {
+                    registry.registerMessageDispatchedDuringHandling(
+                        DispatcherStatisticIdentifier(handlerMetricIdentifier, it)
+                    )
+                }
                 return
             }
 
@@ -109,6 +117,11 @@ class InspectorSpanFactory(
                     duration = end - timeStarted!!,
                     metrics = metrics
                 )
+                dispatchedMessages.forEach {
+                    registry.registerMessageDispatchedDuringHandling(
+                        DispatcherStatisticIdentifier(handlerMetricIdentifier, it)
+                    )
+                }
             }
         }
 

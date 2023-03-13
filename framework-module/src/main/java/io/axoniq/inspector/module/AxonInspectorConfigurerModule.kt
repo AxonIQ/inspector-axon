@@ -127,7 +127,8 @@ class AxonInspectorConfigurerModule(
                 it.findModules(AggregateConfiguration::class.java).forEach { ac ->
                     val repo = ac.repository()
                     if (repo is EventSourcingRepository) {
-                        val field = ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
+                        val field =
+                            ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
                         if (field != null) {
                             val current = ReflectionUtils.getFieldValue<EventStore>(field, repo)
                             if (current !is InspectorWrappedEventStore) {
