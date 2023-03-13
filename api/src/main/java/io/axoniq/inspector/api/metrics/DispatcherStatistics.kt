@@ -16,6 +16,9 @@
 
 package io.axoniq.inspector.api.metrics
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class DispatcherStatistics(
+    @JsonProperty("c")
     val count: Double,
 )

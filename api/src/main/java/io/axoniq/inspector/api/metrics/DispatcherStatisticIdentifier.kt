@@ -16,7 +16,11 @@
 
 package io.axoniq.inspector.api.metrics
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class DispatcherStatisticIdentifier(
+    @JsonProperty("h")
     val handlerInformation: HandlerStatisticsMetricIdentifier?,
+    @JsonProperty("m")
     val message: MessageIdentifier,
 )

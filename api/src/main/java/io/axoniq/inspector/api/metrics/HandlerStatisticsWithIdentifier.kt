@@ -16,7 +16,11 @@
 
 package io.axoniq.inspector.api.metrics
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class HandlerStatisticsWithIdentifier(
+    @JsonProperty("h")
     val handler: HandlerStatisticsMetricIdentifier,
+    @JsonProperty("s")
     val statistics: HandlerStatistics,
 )

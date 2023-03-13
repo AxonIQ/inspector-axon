@@ -28,4 +28,11 @@
     <artifactId>inspector-axon-api</artifactId>
     <name>Inspector Axon - API</name>
     <description>API module for Inspector Axon</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+        </dependency>
+    </dependencies>
 </project>

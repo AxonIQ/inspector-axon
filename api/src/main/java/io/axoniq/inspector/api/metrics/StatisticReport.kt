@@ -16,8 +16,13 @@
 
 package io.axoniq.inspector.api.metrics
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class StatisticReport(
+    @JsonProperty("h")
     val handlers: List<HandlerStatisticsWithIdentifier>,
+    @JsonProperty("d")
     val dispatchers: List<DispatcherStatisticsWithIdentifier>,
+    @JsonProperty("a")
     val aggregates: List<AggregateStatisticsWithIdentifier>,
 )

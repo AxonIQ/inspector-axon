@@ -16,7 +16,11 @@
 
 package io.axoniq.inspector.api.metrics
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class AggregateStatisticsWithIdentifier(
+    @JsonProperty("a")
     val aggregate: AggregateStatisticIdentifier,
+    @JsonProperty("s")
     val statistics: AggregateStatistics,
 )

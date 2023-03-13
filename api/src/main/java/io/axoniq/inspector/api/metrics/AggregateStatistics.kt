@@ -16,9 +16,15 @@
 
 package io.axoniq.inspector.api.metrics
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class AggregateStatistics(
+    @JsonProperty("c")
     val count: Double,
+    @JsonProperty("f")
     val failed: Double,
+    @JsonProperty("t")
     val timer: StatisticDistribution?,
+    @JsonProperty("m")
     val metrics: Map<String, StatisticDistribution>,
 )

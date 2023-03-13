@@ -16,11 +16,19 @@
 
 package io.axoniq.inspector.api.metrics
 
+import com.fasterxml.jackson.annotation.JsonProperty
+
 data class StatisticDistribution(
+    @JsonProperty("-")
     val min: Double,
+    @JsonProperty("me")
     val median: Double,
+    @JsonProperty("m")
     val mean: Double,
+    @JsonProperty("p95")
     val percentile95: Double,
+    @JsonProperty("p90")
     val percentile90: Double,
+    @JsonProperty("+")
     val max: Double,
 )
