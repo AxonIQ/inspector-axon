@@ -95,7 +95,7 @@ class InspectorSpanFactory(
             if (!CurrentUnitOfWork.isStarted()) {
                 registry.registerMessageHandled(
                     handler = handlerMetricIdentifier!!,
-                    success = handlerSuccessful,
+                    success = handlerSuccessful && transactionSuccessful,
                     duration = end - timeStarted!!,
                     metrics = metrics
                 )
@@ -105,7 +105,7 @@ class InspectorSpanFactory(
             CurrentUnitOfWork.get().onCleanup {
                 registry.registerMessageHandled(
                     handler = handlerMetricIdentifier!!,
-                    success = handlerSuccessful,
+                    success = handlerSuccessful && transactionSuccessful,
                     duration = end - timeStarted!!,
                     metrics = metrics
                 )
@@ -129,7 +129,7 @@ class InspectorSpanFactory(
         vararg linkedParents: Message<*>?
     ): Span {
         val name = operationNameSupplier.get()
-        if (name == "QueryProcessingTask" || name == "AxonServerCommandBus.handle") {
+        if (name == "QueryProcessingTask" || name == "AxonServerCommandBus.handle" || name == "DeadlineJob.execute") {
             return startIfNotActive(parentMessage)
         }
         return NOOP_SPAN

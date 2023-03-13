@@ -145,7 +145,7 @@ class HandlerMetricsRegistry(
             aggStats.totalTimer.record(duration, TimeUnit.NANOSECONDS)
             aggStats.totalCount.increment()
             if (!success) {
-                handlerStats.failureCount.increment()
+                aggStats.failureCount.increment()
             }
 
         }
