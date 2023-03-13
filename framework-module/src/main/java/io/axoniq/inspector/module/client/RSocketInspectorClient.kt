@@ -73,7 +73,7 @@ class RSocketInspectorClient(
                 logger.info("Reconnecting Inspector Axon...")
                 connect()
             }
-        }, 2500, 10000, TimeUnit.MILLISECONDS)
+        }, properties.initialDelay, 10000, TimeUnit.MILLISECONDS)
     }
 
     fun connect() {

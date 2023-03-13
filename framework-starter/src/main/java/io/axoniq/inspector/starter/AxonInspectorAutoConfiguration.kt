@@ -40,6 +40,7 @@ class AxonInspectorAutoConfiguration {
             AxonInspectorProperties(
                 host = properties.host,
                 port = properties.port,
+                initialDelay = properties.initialDelay,
                 secure = properties.secure,
                 workspaceId = properties.workspaceId,
                 environmentId = properties.environmentId,
