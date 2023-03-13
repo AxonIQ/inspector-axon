@@ -56,32 +56,40 @@ class HandlerMetricsRegistry(
 
     private fun getStats(): StatisticReport {
         val flow = StatisticReport(
-            handlers = handlers.entries.map {
-                HandlerStatisticsWithIdentifier(
-                    it.key, HandlerStatistics(
-                        it.value.totalCount.value(),
-                        it.value.failureCount.value(),
-                        it.value.totalTimer.takeSnapshot().toDistribution(),
-                        it.value.metrics.map { (k, v) -> k.fullIdentifier to v.takeSnapshot().toDistribution() }.toMap()
+            handlers = handlers.entries
+                .filter { it.value.totalCount.value() > 0 }
+                .map {
+                    HandlerStatisticsWithIdentifier(
+                        it.key, HandlerStatistics(
+                            it.value.totalCount.value(),
+                            it.value.failureCount.value(),
+                            it.value.totalTimer.takeSnapshot().toDistribution(),
+                            it.value.metrics.map { (k, v) -> k.fullIdentifier to v.takeSnapshot().toDistribution() }
+                                .toMap()
+                        )
                     )
-                )
-            },
-            dispatchers = dispatches.entries.map {
-                DispatcherStatisticsWithIdentifier(
-                    it.key,
-                    DispatcherStatistics(it.value.value())
-                )
-            },
-            aggregates = aggregates.entries.map {
-                AggregateStatisticsWithIdentifier(
-                    it.key, AggregateStatistics(
-                        it.value.totalCount.value(),
-                        it.value.failureCount.value(),
-                        it.value.totalTimer.takeSnapshot().toDistribution(),
-                        it.value.metrics.map { (k, v) -> k.fullIdentifier to v.takeSnapshot().toDistribution() }.toMap()
+                },
+            dispatchers = dispatches.entries
+                .filter { it.value.value() > 0 }
+                .map {
+                    DispatcherStatisticsWithIdentifier(
+                        it.key,
+                        DispatcherStatistics(it.value.value())
                     )
-                )
-            })
+                },
+            aggregates = aggregates.entries
+                .filter { it.value.totalCount.value() > 0 }
+                .map {
+                    AggregateStatisticsWithIdentifier(
+                        it.key, AggregateStatistics(
+                            it.value.totalCount.value(),
+                            it.value.failureCount.value(),
+                            it.value.totalTimer.takeSnapshot().toDistribution(),
+                            it.value.metrics.map { (k, v) -> k.fullIdentifier to v.takeSnapshot().toDistribution() }
+                                .toMap()
+                        )
+                    )
+                })
 
         handlers.values.forEach {
             it.totalCount.incrementWindow()
