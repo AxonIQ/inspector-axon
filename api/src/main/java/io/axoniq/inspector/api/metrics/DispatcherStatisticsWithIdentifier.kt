@@ -14,14 +14,9 @@
  * limitations under the License.
  */
 
-package io.axoniq.inspector.module.client.strategy
+package io.axoniq.inspector.api.metrics
 
-import io.netty.buffer.ByteBuf
-import io.rsocket.Payload
-import io.rsocket.metadata.WellKnownMimeType
-
-interface RSocketPayloadEncodingStrategy {
-    fun getMimeType(): WellKnownMimeType
-    fun encode(payload: Any, metadata: ByteBuf? = null): Payload
-    fun <T> decode(payload: Payload, expectedType: Class<T>): T
-}
+data class DispatcherStatisticsWithIdentifier(
+    val handler: DispatcherStatisticIdentifier,
+    val statistics: DispatcherStatistics,
+)

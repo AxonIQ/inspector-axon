@@ -16,6 +16,7 @@
 
 package io.axoniq.inspector.module.api
 
+import io.axoniq.inspector.api.metrics.UserHandlerInterceptorMetric
 import io.axoniq.inspector.module.messaging.InspectorSpanFactory
 import org.axonframework.messaging.InterceptorChain
 import org.axonframework.messaging.Message
@@ -48,7 +49,8 @@ class InspectorMeasuringHandlerInterceptor(
 
         val time = (endBefore!! - start) + (end - startAfter!!)
         InspectorSpanFactory.onTopLevelSpanIfActive(unitOfWork.message) {
-            it.additionalMetrics["MHI_$name"] = time
+            val metric = UserHandlerInterceptorMetric(identifier = "mhi_$name")
+            it.registerMetricValue(metric, time)
         }
         return result
     }

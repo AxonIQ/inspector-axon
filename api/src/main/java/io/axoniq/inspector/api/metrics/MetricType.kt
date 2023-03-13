@@ -14,14 +14,15 @@
  * limitations under the License.
  */
 
-package io.axoniq.inspector.module.client.strategy
+package io.axoniq.inspector.api.metrics
 
-import io.netty.buffer.ByteBuf
-import io.rsocket.Payload
-import io.rsocket.metadata.WellKnownMimeType
+import java.util.concurrent.TimeUnit
 
-interface RSocketPayloadEncodingStrategy {
-    fun getMimeType(): WellKnownMimeType
-    fun encode(payload: Any, metadata: ByteBuf? = null): Payload
-    fun <T> decode(payload: Payload, expectedType: Class<T>): T
+/**
+ * Due to limitations of micrometer, we cannot make a distribution of a simple counter/gauge. We need a timer for
+ * that. Since we want to measure stuff like p90 interval of events read for an aggregate, we may need to convert this.
+ */
+enum class MetricType(val metricPrefix: String, val distributionUnit: TimeUnit) {
+    TIMER("tmr", TimeUnit.NANOSECONDS),
+    COUNTER("cntr", TimeUnit.MILLISECONDS),
 }

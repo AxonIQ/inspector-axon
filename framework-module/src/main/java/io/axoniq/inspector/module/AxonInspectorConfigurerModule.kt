@@ -23,12 +23,18 @@ import io.axoniq.inspector.module.client.SetupPayloadCreator
 import io.axoniq.inspector.module.client.strategy.CborEncodingStrategy
 import io.axoniq.inspector.module.client.strategy.RSocketPayloadEncodingStrategy
 import io.axoniq.inspector.module.eventprocessor.*
+import io.axoniq.inspector.module.eventprocessor.metrics.InspectorHandlerProcessorInterceptor
+import io.axoniq.inspector.module.eventprocessor.metrics.ProcessorMetricsRegistry
 import io.axoniq.inspector.module.messaging.HandlerMetricsRegistry
 import io.axoniq.inspector.module.messaging.InspectorDispatchInterceptor
-import io.axoniq.inspector.module.messaging.InspectorHandlerProcessorInterceptor
 import io.axoniq.inspector.module.messaging.InspectorSpanFactory
+import io.axoniq.inspector.module.messaging.InspectorWrappedEventStore
+import org.axonframework.common.ReflectionUtils
+import org.axonframework.config.AggregateConfiguration
 import org.axonframework.config.Configurer
 import org.axonframework.config.ConfigurerModule
+import org.axonframework.eventsourcing.EventSourcingRepository
+import org.axonframework.eventsourcing.eventstore.EventStore
 import org.axonframework.tracing.SpanFactory
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
@@ -116,6 +122,21 @@ class AxonInspectorConfigurerModule(
             it.getComponent(ServerProcessorReporter::class.java)
             it.getComponent(RSocketProcessorResponder::class.java)
             it.getComponent(RSocketDlqResponder::class.java)
+
+            it.onStart {
+                it.findModules(AggregateConfiguration::class.java).forEach { ac ->
+                    val repo = ac.repository()
+                    if (repo is EventSourcingRepository) {
+                        val field = ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
+                        if (field != null) {
+                            val current = ReflectionUtils.getFieldValue<EventStore>(field, repo)
+                            if (current !is InspectorWrappedEventStore) {
+                                ReflectionUtils.setFieldValue(field, repo, InspectorWrappedEventStore(current))
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         configurer.onStart {

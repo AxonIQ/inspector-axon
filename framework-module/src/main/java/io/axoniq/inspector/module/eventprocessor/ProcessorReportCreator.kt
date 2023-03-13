@@ -17,6 +17,7 @@
 package io.axoniq.inspector.module.eventprocessor
 
 import io.axoniq.inspector.api.*
+import io.axoniq.inspector.module.eventprocessor.metrics.ProcessorMetricsRegistry
 import org.axonframework.common.ReflectionUtils
 import org.axonframework.config.EventProcessingConfiguration
 import org.axonframework.eventhandling.EventTrackerStatus

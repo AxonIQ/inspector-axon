@@ -16,7 +16,7 @@
 
 package io.axoniq.inspector.module.messaging
 
-import io.axoniq.inspector.api.DispatcherInformation
+import io.axoniq.inspector.api.metrics.DispatcherStatisticIdentifier
 import org.axonframework.messaging.Message
 import org.axonframework.messaging.MessageDispatchInterceptor
 import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
@@ -32,12 +32,12 @@ class InspectorDispatchInterceptor(
                 it.afterCommit { uow ->
                     val handlerInformation = uow.extractHandler()
                     registry.registerMessageDispatchedDuringHandling(
-                        dispatcher = DispatcherInformation(handlerInformation, message.toInformation()),
+                        dispatcher = DispatcherStatisticIdentifier(handlerInformation, message.toInformation()),
                     )
                 }
             }.orElseGet {
                 registry.registerMessageDispatchedDuringHandling(
-                    dispatcher = DispatcherInformation(null, message.toInformation()),
+                    dispatcher = DispatcherStatisticIdentifier(null, message.toInformation()),
                 )
             }
 

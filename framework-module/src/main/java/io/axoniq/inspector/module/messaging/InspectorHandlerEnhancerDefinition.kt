@@ -44,24 +44,19 @@ class InspectorHandlerEnhancerDefinition : HandlerEnhancerDefinition {
                 }
                 val uow = CurrentUnitOfWork.get()
                 uow.resources()[INSPECTOR_DECLARING_CLASS] = declaringClassName
-                if (uow.resources()[INSPECTOR_PROCESSING_GROUP] == null) {
-                    uow.resources()[INSPECTOR_PROCESSING_GROUP] = processingGroup
-                }
-                InspectorSpanFactory.onTopLevelSpanIfActive(uow.message) {
-                    it.timeHandlerStarted = System.nanoTime()
-                    it.handlerInformation = uow.extractHandler()
-                }
+                uow.resources().computeIfAbsent(INSPECTOR_PROCESSING_GROUP) { processingGroup }
+
+                val start = System.nanoTime()
                 try {
                     val result = super.handle(message, target)
-                    InspectorSpanFactory.onTopLevelSpanIfActive(uow.message) {
-                        it.handlerSuccessful = true
-                        it.timeHandlerEnded = System.nanoTime()
+                    InspectorSpanFactory.onTopLevelSpanIfActive {
+                        it.registerHandler(uow.extractHandler(), System.nanoTime() - start)
                     }
                     return result
                 } catch (e: Exception) {
-                    InspectorSpanFactory.onTopLevelSpanIfActive(uow.message) {
-                        it.handlerSuccessful = false
-                        it.timeHandlerEnded = System.nanoTime()
+                    InspectorSpanFactory.onTopLevelSpanIfActive {
+                        it.recordException(e)
+                        it.registerHandler(uow.extractHandler(), System.nanoTime() - start)
                     }
                     throw e
                 }

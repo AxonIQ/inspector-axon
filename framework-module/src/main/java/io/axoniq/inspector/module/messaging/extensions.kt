@@ -16,19 +16,24 @@
 
 package io.axoniq.inspector.module.messaging
 
-import io.axoniq.inspector.api.HandlerInformation
-import io.axoniq.inspector.api.HandlerType
-import io.axoniq.inspector.api.MessageInformation
+import io.axoniq.inspector.api.metrics.HandlerStatisticsMetricIdentifier
+import io.axoniq.inspector.api.metrics.HandlerType
+import io.axoniq.inspector.api.metrics.MessageIdentifier
+import io.axoniq.inspector.api.metrics.StatisticDistribution
+import io.micrometer.core.instrument.distribution.HistogramSnapshot
+import io.micrometer.core.instrument.distribution.ValueAtPercentile
 import org.axonframework.commandhandling.CommandMessage
 import org.axonframework.deadline.DeadlineMessage
 import org.axonframework.eventhandling.EventMessage
 import org.axonframework.messaging.Message
 import org.axonframework.messaging.unitofwork.UnitOfWork
 import org.axonframework.modelling.command.AggregateLifecycle
+import org.axonframework.modelling.command.AggregateScopeDescriptor
 import org.axonframework.queryhandling.QueryMessage
 import org.axonframework.queryhandling.SubscriptionQueryUpdateMessage
+import java.util.concurrent.TimeUnit
 
-fun Message<*>.toInformation() = MessageInformation(
+fun Message<*>.toInformation() = MessageIdentifier(
     when (this) {
         is DeadlineMessage<*> -> DeadlineMessage::class.java.simpleName
         is CommandMessage -> CommandMessage::class.java.simpleName
@@ -45,21 +50,28 @@ fun Message<*>.toInformation() = MessageInformation(
     }
 )
 
-fun UnitOfWork<*>.extractHandler(): HandlerInformation {
+fun UnitOfWork<*>.extractHandler(): HandlerStatisticsMetricIdentifier {
     return resources().computeIfAbsent(INSPECTOR_HANDLER_INFORMATION) {
         val processingGroup = resources()[INSPECTOR_PROCESSING_GROUP] as? String?
         val isAggregate = message is CommandMessage<*> && isAggregateLifecycleActive()
         val isProcessor = processingGroup != null
-        HandlerInformation(
-            type = when {
-                isAggregate -> HandlerType.Aggregate
-                isProcessor -> HandlerType.EventProcessor
-                else -> HandlerType.Message
-            },
-            component = processingGroup ?: resources()[INSPECTOR_DECLARING_CLASS] as String?,
+
+        val component = when {
+            isAggregate -> (AggregateLifecycle.describeCurrentScope() as AggregateScopeDescriptor).type
+            isProcessor -> processingGroup
+            else -> resources()[INSPECTOR_DECLARING_CLASS] as String?
+        }
+        val type = when {
+            isAggregate -> HandlerType.Aggregate
+            isProcessor -> HandlerType.EventProcessor
+            else -> HandlerType.Message
+        }
+        HandlerStatisticsMetricIdentifier(
+            type = type,
+            component = component,
             message = message.toInformation(),
         )
-    } as HandlerInformation
+    } as HandlerStatisticsMetricIdentifier
 }
 
 fun isAggregateLifecycleActive(): Boolean {
@@ -69,4 +81,22 @@ fun isAggregateLifecycleActive(): Boolean {
     } catch (e: Exception) {
         false
     }
+}
+
+
+fun HistogramSnapshot.toDistribution(): StatisticDistribution {
+    val percentiles = percentileValues()
+    return StatisticDistribution(
+        min = percentiles.ofPercentile(0.01),
+        percentile90 = percentiles.ofPercentile(0.90),
+        percentile95 = percentiles.ofPercentile(0.95),
+        median = percentiles.ofPercentile(0.50),
+        mean = mean(TimeUnit.MILLISECONDS),
+        max = percentiles.ofPercentile(1.00),
+    )
+}
+
+fun Array<ValueAtPercentile>.ofPercentile(percentile: Double): Double {
+    return this.firstOrNull { pc -> pc.percentile() == percentile }
+        ?.value(TimeUnit.MILLISECONDS)!!
 }
