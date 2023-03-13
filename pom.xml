@@ -22,7 +22,7 @@
 
     <groupId>io.axoniq.inspector.connectors</groupId>
     <artifactId>inspector-connectors-parent</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.0.2-SNAPSHOT</version>
 
     <modules>
         <module>api</module>
