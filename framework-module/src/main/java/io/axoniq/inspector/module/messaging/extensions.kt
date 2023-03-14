@@ -51,27 +51,25 @@ fun Message<*>.toInformation() = MessageIdentifier(
 )
 
 fun UnitOfWork<*>.extractHandler(): HandlerStatisticsMetricIdentifier {
-    return resources().computeIfAbsent(INSPECTOR_HANDLER_INFORMATION) {
-        val processingGroup = resources()[INSPECTOR_PROCESSING_GROUP] as? String?
-        val isAggregate = message is CommandMessage<*> && isAggregateLifecycleActive()
-        val isProcessor = processingGroup != null
+    val processingGroup = resources()[INSPECTOR_PROCESSING_GROUP] as? String?
+    val isAggregate = message is CommandMessage<*> && isAggregateLifecycleActive()
+    val isProcessor = processingGroup != null
 
-        val component = when {
-            isAggregate -> (AggregateLifecycle.describeCurrentScope() as AggregateScopeDescriptor).type
-            isProcessor -> processingGroup
-            else -> resources()[INSPECTOR_DECLARING_CLASS] as String?
-        }
-        val type = when {
-            isAggregate -> HandlerType.Aggregate
-            isProcessor -> HandlerType.EventProcessor
-            else -> HandlerType.Message
-        }
-        HandlerStatisticsMetricIdentifier(
-            type = type,
-            component = component,
-            message = message.toInformation(),
-        )
-    } as HandlerStatisticsMetricIdentifier
+    val component = when {
+        isAggregate -> (AggregateLifecycle.describeCurrentScope() as AggregateScopeDescriptor).type
+        isProcessor -> processingGroup
+        else -> resources()[INSPECTOR_DECLARING_CLASS] as String?
+    }
+    val type = when {
+        isAggregate -> HandlerType.Aggregate
+        isProcessor -> HandlerType.EventProcessor
+        else -> HandlerType.Message
+    }
+    return HandlerStatisticsMetricIdentifier(
+        type = type,
+        component = component,
+        message = message.toInformation(),
+    )
 }
 
 fun isAggregateLifecycleActive(): Boolean {

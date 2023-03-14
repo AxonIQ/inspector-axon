@@ -28,19 +28,18 @@ class InspectorDispatchInterceptor(
 
     override fun handle(messages: MutableList<out Message<*>>): BiFunction<Int, Message<*>, Message<*>> {
         return BiFunction { _, message ->
-            CurrentUnitOfWork.map {
-                it.afterCommit { uow ->
-                    val handlerInformation = uow.extractHandler()
-                    registry.registerMessageDispatchedDuringHandling(
-                        dispatcher = DispatcherStatisticIdentifier(handlerInformation, message.toInformation()),
-                    )
-                }
-            }.orElseGet {
+            if (!CurrentUnitOfWork.isStarted()) {
                 registry.registerMessageDispatchedDuringHandling(
-                    dispatcher = DispatcherStatisticIdentifier(null, message.toInformation()),
+                    DispatcherStatisticIdentifier(
+                        null,
+                        message.toInformation()
+                    )
                 )
+            } else {
+                InspectorSpanFactory.onTopLevelSpanIfActive {
+                    it.registerMessageDispatched(message.toInformation())
+                }
             }
-
             message
         }
     }
