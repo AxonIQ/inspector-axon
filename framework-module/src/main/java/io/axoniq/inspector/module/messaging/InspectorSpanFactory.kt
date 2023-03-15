@@ -22,6 +22,7 @@ import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
 import org.axonframework.tracing.Span
 import org.axonframework.tracing.SpanAttributesProvider
 import org.axonframework.tracing.SpanFactory
+import org.axonframework.tracing.SpanScope
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Supplier
@@ -53,7 +54,7 @@ class InspectorSpanFactory(
         }
     }
 
-    inner class MeasuringInspectorSpan(private val message: Message<*>) : Span {
+    inner class MeasuringInspectorSpan(private val messageId: String) : Span {
         private var timeStarted: Long? = null
         private var transactionSuccessful = true
 
@@ -80,43 +81,48 @@ class InspectorSpanFactory(
         }
 
         override fun start(): Span {
+            ACTIVE_ROOT_SPANS[messageId] = this
             timeStarted = System.nanoTime()
-            ACTIVE_ROOT_SPANS[message.identifier] = this
-            CURRENT_MESSAGE_ID.set(message.identifier)
             CurrentUnitOfWork.map {
                 it.onRollback { transactionSuccessful = false }
             }
             return this
         }
 
+
+        override fun makeCurrent(): SpanScope {
+            val old = CURRENT_MESSAGE_ID.get()
+            CURRENT_MESSAGE_ID.set(messageId)
+            return SpanScope {
+                if(old == null) {
+                    CURRENT_MESSAGE_ID.remove()
+                } else {
+                    CURRENT_MESSAGE_ID.set(old)
+                }
+            }
+        }
+
         override fun end() {
             val end = System.nanoTime()
-            ACTIVE_ROOT_SPANS.remove(message.identifier)
-            CURRENT_MESSAGE_ID.remove()
+            ACTIVE_ROOT_SPANS.remove(messageId)
 
             if (handlerMetricIdentifier == null || timeStarted == null) return
-            if (!CurrentUnitOfWork.isStarted()) {
-                registry.registerMessageHandled(
-                    handler = handlerMetricIdentifier!!,
-                    success = handlerSuccessful && transactionSuccessful,
-                    duration = end - timeStarted!!,
-                    metrics = metrics
-                )
-                dispatchedMessages.forEach {
-                    registry.registerMessageDispatchedDuringHandling(
-                        DispatcherStatisticIdentifier(handlerMetricIdentifier, it)
-                    )
-                }
-                return
+            CurrentUnitOfWork.map {
+                it.onCleanup { report(end) }
+            }.orElseGet {
+                report(end)
             }
+        }
 
-            CurrentUnitOfWork.get().onCleanup {
-                registry.registerMessageHandled(
-                    handler = handlerMetricIdentifier!!,
-                    success = handlerSuccessful && transactionSuccessful,
-                    duration = end - timeStarted!!,
-                    metrics = metrics
-                )
+        private fun report(end: Long) {
+            val success = handlerSuccessful && transactionSuccessful
+            registry.registerMessageHandled(
+                handler = handlerMetricIdentifier!!,
+                success = success,
+                duration = end - timeStarted!!,
+                metrics = metrics
+            )
+            if(success) {
                 dispatchedMessages.forEach {
                     registry.registerMessageDispatchedDuringHandling(
                         DispatcherStatisticIdentifier(handlerMetricIdentifier, it)
@@ -197,7 +203,7 @@ class InspectorSpanFactory(
             return NOOP_SPAN
         }
         return ACTIVE_ROOT_SPANS.computeIfAbsent(message.identifier) {
-            MeasuringInspectorSpan(message)
+            MeasuringInspectorSpan(message.identifier)
         }
     }
 

@@ -16,6 +16,7 @@
 
 package io.axoniq.inspector.module.messaging
 
+import org.axonframework.common.Priority
 import org.axonframework.config.ProcessingGroup
 import org.axonframework.messaging.Message
 import org.axonframework.messaging.annotation.HandlerEnhancerDefinition
@@ -25,8 +26,8 @@ import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
 
 internal const val INSPECTOR_DECLARING_CLASS = "___inspectorDeclaringClass"
 internal const val INSPECTOR_PROCESSING_GROUP = "___inspectorProcessor"
-internal const val INSPECTOR_HANDLER_INFORMATION = "___inspectorHandlerInformation"
 
+@Priority((Int.MIN_VALUE * 0.95).toInt())
 class InspectorHandlerEnhancerDefinition : HandlerEnhancerDefinition {
 
     override fun <T : Any?> wrapHandler(original: MessageHandlingMember<T>): MessageHandlingMember<T> {
