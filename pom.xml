@@ -50,7 +50,7 @@
 
         <axon.version>4.7.0</axon.version>
 
-        <projectreactor.version>3.5.3</projectreactor.version>
+        <projectreactor.version>3.5.4</projectreactor.version>
         <spring-boot.version>2.7.9</spring-boot.version>
     </properties>
 
