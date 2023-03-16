@@ -25,10 +25,7 @@ import io.axoniq.inspector.module.client.strategy.RSocketPayloadEncodingStrategy
 import io.axoniq.inspector.module.eventprocessor.*
 import io.axoniq.inspector.module.eventprocessor.metrics.InspectorHandlerProcessorInterceptor
 import io.axoniq.inspector.module.eventprocessor.metrics.ProcessorMetricsRegistry
-import io.axoniq.inspector.module.messaging.HandlerMetricsRegistry
-import io.axoniq.inspector.module.messaging.InspectorDispatchInterceptor
-import io.axoniq.inspector.module.messaging.InspectorSpanFactory
-import io.axoniq.inspector.module.messaging.InspectorWrappedEventStore
+import io.axoniq.inspector.module.messaging.*
 import org.axonframework.common.ReflectionUtils
 import org.axonframework.config.AggregateConfiguration
 import org.axonframework.config.Configurer
@@ -109,6 +106,9 @@ class AxonInspectorConfigurerModule(
             }
             .registerComponent(SpanFactory::class.java) {
                 InspectorSpanFactory(it.getComponent(HandlerMetricsRegistry::class.java))
+            }
+            .registerHandlerEnhancerDefinition {
+                InspectorHandlerEnhancerDefinition()
             }
             .eventProcessing()
             .registerDefaultHandlerInterceptor { config, name ->
