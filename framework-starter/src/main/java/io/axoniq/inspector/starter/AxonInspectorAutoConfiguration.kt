@@ -21,11 +21,14 @@ import io.axoniq.inspector.module.AxonInspectorProperties
 import io.axoniq.inspector.module.messaging.HandlerMetricsRegistry
 import io.axoniq.inspector.module.messaging.InspectorSpanFactory
 import org.axonframework.config.Configuration
+import org.axonframework.config.ConfigurerModule
 import org.axonframework.tracing.MultiSpanFactory
 import org.axonframework.tracing.NoOpSpanFactory
 import org.axonframework.tracing.SpanFactory
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.config.BeanPostProcessor
 import org.springframework.boot.autoconfigure.AutoConfiguration
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.ApplicationContext
 import org.springframework.context.annotation.Bean
@@ -33,23 +36,47 @@ import org.springframework.context.annotation.Bean
 @AutoConfiguration
 @EnableConfigurationProperties(InspectorProperties::class)
 class AxonInspectorAutoConfiguration {
+    private val logger = LoggerFactory.getLogger(this::class.java)
 
     @Bean
-    fun configurerModule(properties: InspectorProperties, applicationContext: ApplicationContext) =
-        AxonInspectorConfigurerModule(
+    @ConditionalOnProperty("axon.inspector.credentials", matchIfMissing = false)
+    fun configurerModule(
+        properties: InspectorProperties,
+        applicationContext: ApplicationContext
+    ): AxonInspectorConfigurerModule {
+        val credentials =
+            properties.credentials ?: throw IllegalStateException("No known credentials for Inspector Axon!")
+        val applicationName = properties.applicationName ?: applicationContext.id!!
+        val (workspaceId, environmentId, accessToken) = credentials.split(":")
+        logger.info(
+            "Setting up Inspector Axon work Workspace {} and Environment {}. This application will be registered as {}",
+            workspaceId,
+            environmentId,
+            applicationName
+        )
+        return AxonInspectorConfigurerModule(
             AxonInspectorProperties(
                 host = properties.host,
                 port = properties.port,
                 initialDelay = properties.initialDelay,
                 secure = properties.secure,
-                workspaceId = properties.workspaceId,
-                environmentId = properties.environmentId,
-                accessToken = properties.accessToken,
-                applicationName = applicationContext.id!!
+                workspaceId = workspaceId,
+                environmentId = environmentId,
+                accessToken = accessToken,
+                applicationName = applicationName
             )
         )
+    }
+
 
     @Bean
+    @ConditionalOnProperty("axon.inspector.credentials", matchIfMissing = true)
+    fun configurerModule() = ConfigurerModule {
+        logger.warn("No credentials were provided for the connection to Inspector Axon. Please provide them as instructed through the 'axon.inspector.credentials' property.")
+    }
+
+    @Bean
+    @ConditionalOnProperty("axon.inspector.credentials", matchIfMissing = false)
     fun spanFactoryInspectorPostProcessor(configuration: Configuration) = object : BeanPostProcessor {
         override fun postProcessBeforeInitialization(bean: Any, beanName: String): Any {
             if (bean !is SpanFactory || bean is InspectorSpanFactory) {

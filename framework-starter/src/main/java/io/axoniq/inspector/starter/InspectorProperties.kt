@@ -21,11 +21,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 
 @ConfigurationProperties("axon.inspector")
 class InspectorProperties {
-    var host: String = "localhost"
+    var host: String = "connector.inspector.axoniq.io"
     var port: Int = 7000
     var secure: Boolean = true
-    var workspaceId: String = ""
-    var environmentId: String = ""
-    var accessToken: String = ""
+    var credentials: String? = null
     var initialDelay: Long = 0
+    var applicationName: String? = null
 }

@@ -17,13 +17,13 @@
 package io.axoniq.inspector.module
 
 class AxonInspectorProperties(
-    val host: String,
-    val port: Int,
-    val secure: Boolean,
     val workspaceId: String,
     val environmentId: String,
     val accessToken: String,
     val applicationName: String,
+    val host: String = "connector.inspector.axoniq.io",
+    val port: Int = 7000,
+    val secure: Boolean = true,
     val threadPoolSize: Int = 1,
     val initialDelay: Long = 0,
 )
