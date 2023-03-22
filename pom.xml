@@ -20,18 +20,18 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.axoniq.inspector.connectors</groupId>
-    <artifactId>inspector-connectors-parent</artifactId>
+    <groupId>io.axoniq.inspector</groupId>
+    <artifactId>inspector-axon-parent</artifactId>
     <version>0.0.1-beta-SNAPSHOT</version>
 
     <modules>
-        <module>api</module>
-        <module>framework-starter</module>
-        <module>framework-module</module>
+        <module>inspector-axon-api</module>
+        <module>inspector-axon-spring-boot-starter</module>
+        <module>inspector-axon</module>
     </modules>
     <packaging>pom</packaging>
 
-    <name>AxonIQ - Inspector Connectors</name>
+    <name>AxonIQ - Inspector Axon Parent</name>
     <description>Project containing several connectors to Inspector Axon</description>
 
     <inceptionYear>2022</inceptionYear>
