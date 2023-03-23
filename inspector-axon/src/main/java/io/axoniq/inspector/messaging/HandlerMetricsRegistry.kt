@@ -48,7 +48,7 @@ class HandlerMetricsRegistry(
         executor.scheduleAtFixedRate({
             try {
                 val stats = getStats()
-                logger.info("Sending metrics: {}", stats)
+                logger.debug("Sending metrics: {}", stats)
                 rSocketInspectorClient.send(Routes.MessageFlow.STATS, stats).block()
             } catch (e: Exception) {
                 logger.warn("No metrics could be reported to Inspector Axon: {}", e.message)
