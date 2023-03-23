@@ -19,6 +19,7 @@ package io.axoniq.inspector.starter
 import io.axoniq.inspector.AxonInspectorConfigurerModule
 import io.axoniq.inspector.AxonInspectorProperties
 import io.axoniq.inspector.messaging.HandlerMetricsRegistry
+import io.axoniq.inspector.messaging.InspectorHandlerEnhancerDefinition
 import io.axoniq.inspector.messaging.InspectorSpanFactory
 import org.axonframework.config.Configuration
 import org.axonframework.config.ConfigurerModule
@@ -43,7 +44,7 @@ class AxonInspectorAutoConfiguration {
     fun inspectorAxonConfigurerModule(
         properties: InspectorProperties,
         applicationContext: ApplicationContext
-    ): io.axoniq.inspector.AxonInspectorConfigurerModule {
+    ): AxonInspectorConfigurerModule {
         val credentials =
             properties.credentials ?: throw IllegalStateException("No known credentials for Inspector Axon!")
         val applicationName = properties.applicationName ?: applicationContext.id!!
@@ -54,7 +55,7 @@ class AxonInspectorAutoConfiguration {
             environmentId,
             applicationName
         )
-        return io.axoniq.inspector.AxonInspectorConfigurerModule(
+        return AxonInspectorConfigurerModule(
             AxonInspectorProperties(
                 host = properties.host,
                 port = properties.port,
@@ -67,7 +68,6 @@ class AxonInspectorAutoConfiguration {
             )
         )
     }
-
 
     @Bean
     @ConditionalOnProperty("axon.inspector.credentials", matchIfMissing = true)

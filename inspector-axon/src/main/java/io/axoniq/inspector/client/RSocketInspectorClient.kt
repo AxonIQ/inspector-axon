@@ -50,7 +50,6 @@ class RSocketInspectorClient(
 
     private lateinit var rsocket: RSocket
     private var connected = false
-    private var terminated = false
 
     override fun registerLifecycleHandlers(registry: Lifecycle.LifecycleRegistry) {
         registry.onStart(Phase.EXTERNAL_CONNECTIONS, this::start)

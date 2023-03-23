@@ -107,9 +107,6 @@ class AxonInspectorConfigurerModule(
             .registerComponent(SpanFactory::class.java) {
                 InspectorSpanFactory(it.getComponent(HandlerMetricsRegistry::class.java))
             }
-            .registerHandlerEnhancerDefinition {
-                InspectorHandlerEnhancerDefinition()
-            }
             .eventProcessing()
             .registerDefaultHandlerInterceptor { config, name ->
                 InspectorHandlerProcessorInterceptor(

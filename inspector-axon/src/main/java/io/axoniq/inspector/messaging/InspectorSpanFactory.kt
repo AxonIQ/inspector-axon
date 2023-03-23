@@ -81,7 +81,9 @@ class InspectorSpanFactory(
         }
 
         override fun start(): Span {
+            logger.trace("Starting span for message id $messageId")
             ACTIVE_ROOT_SPANS[messageId] = this
+            CURRENT_MESSAGE_ID.set(messageId)
             timeStarted = System.nanoTime()
             CurrentUnitOfWork.map {
                 it.onRollback { transactionSuccessful = false }
@@ -89,22 +91,11 @@ class InspectorSpanFactory(
             return this
         }
 
-
-        override fun makeCurrent(): SpanScope {
-            val old = CURRENT_MESSAGE_ID.get()
-            CURRENT_MESSAGE_ID.set(messageId)
-            return SpanScope {
-                if(old == null) {
-                    CURRENT_MESSAGE_ID.remove()
-                } else {
-                    CURRENT_MESSAGE_ID.set(old)
-                }
-            }
-        }
-
         override fun end() {
             val end = System.nanoTime()
             ACTIVE_ROOT_SPANS.remove(messageId)
+            CURRENT_MESSAGE_ID.remove()
+            logger.trace("Ending span for message id $messageId  = $handlerMetricIdentifier")
 
             if (handlerMetricIdentifier == null || timeStarted == null) return
             CurrentUnitOfWork.map {
@@ -115,6 +106,7 @@ class InspectorSpanFactory(
         }
 
         private fun report(end: Long) {
+            logger.trace("Reporting span for message id $messageId = $handlerMetricIdentifier")
             val success = handlerSuccessful && transactionSuccessful
             registry.registerMessageHandled(
                 handler = handlerMetricIdentifier!!,
