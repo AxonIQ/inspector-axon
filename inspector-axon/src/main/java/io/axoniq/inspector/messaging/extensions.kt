@@ -43,12 +43,14 @@ fun Message<*>.toInformation() = MessageIdentifier(
         else -> this::class.java.simpleName
     },
     when (this) {
-        is CommandMessage -> this.commandName
-        is QueryMessage<*, *> -> this.queryName
-        is DeadlineMessage<*> -> this.deadlineName
-        else -> this.payloadType.name
+        is CommandMessage -> this.commandName.toSimpleName()
+        is QueryMessage<*, *> -> this.queryName.toSimpleName()
+        is DeadlineMessage<*> -> this.deadlineName.toSimpleName()
+        else -> this.payloadType.name.toSimpleName()
     }
 )
+
+fun String.toSimpleName() = split(".").last()
 
 fun UnitOfWork<*>.extractHandler(): HandlerStatisticsMetricIdentifier {
     val processingGroup = resources()[INSPECTOR_PROCESSING_GROUP] as? String?
