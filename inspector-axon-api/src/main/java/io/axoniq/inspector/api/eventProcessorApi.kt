@@ -37,9 +37,7 @@ data class ProcessorStatus(
     val error: Boolean,
     val segmentCapacity: Int,
     val activeSegments: Int,
-    val segmentCount: Int,
     val segments: List<SegmentStatus>,
-    val headPosition: Long,
     val ingestLatency: Double,
     val commitLatency: Double,
 )
@@ -57,7 +55,8 @@ data class SegmentStatus(
     val error: Boolean,
     val errorType: String?,
     val errorMessage: String?,
-    val position: Long,
+    val ingestLatency: Double?,
+    val commitLatency: Double?,
 )
 
 data class ProcessorSegmentId(
