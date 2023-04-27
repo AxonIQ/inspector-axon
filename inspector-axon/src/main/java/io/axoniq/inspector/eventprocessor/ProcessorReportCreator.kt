@@ -18,13 +18,11 @@ package io.axoniq.inspector.eventprocessor
 
 import io.axoniq.inspector.api.*
 import io.axoniq.inspector.eventprocessor.metrics.ProcessorMetricsRegistry
-import org.axonframework.common.ReflectionUtils
 import org.axonframework.config.EventProcessingConfiguration
 import org.axonframework.eventhandling.EventTrackerStatus
 import org.axonframework.eventhandling.StreamingEventProcessor
 import org.axonframework.eventhandling.TrackingEventProcessor
 import org.axonframework.eventhandling.pooled.PooledStreamingEventProcessor
-import org.axonframework.messaging.StreamableMessageSource
 
 class ProcessorReportCreator(
     private val processingConfig: EventProcessingConfiguration,
@@ -50,31 +48,12 @@ class ProcessorReportCreator(
                     sep.isError,
                     sep.maxCapacity(),
                     sep.processingStatus().filterValues { !it.isErrorState }.size,
-                    // TODO This will do a query to the TokenStore for every report! Think of optimizing this.
-                    processingConfig.tokenStore(entry.key).fetchSegments(entry.key).size,
-                    sep.processingStatus().map { (_, segment) -> segment.toStatus() },
-                    sep.messageSource()?.createHeadToken()?.position()?.orElse(-1) ?: -1,
-                    metricsRegistry.ingestLatencyForProcessor(entry.key).getValue(),
-                    metricsRegistry.commitLatencyForProcessor(entry.key).getValue(),
+                    sep.processingStatus().map { (_, segment) -> segment.toStatus(entry.key) },
+                    metricsRegistry.ingestLatencyForProcessor(entry.key),
+                    metricsRegistry.commitLatencyForProcessor(entry.key),
                 )
             }
     )
-
-    private fun StreamingEventProcessor.messageSource(): StreamableMessageSource<*>? {
-        if (this is TrackingEventProcessor) {
-            return ReflectionUtils.getFieldValue(
-                TrackingEventProcessor::class.java.getDeclaredField("messageSource"),
-                this
-            )
-        }
-        if (this is PooledStreamingEventProcessor) {
-            return ReflectionUtils.getFieldValue(
-                PooledStreamingEventProcessor::class.java.getDeclaredField("messageSource"),
-                this
-            )
-        }
-        return null
-    }
 
     private fun StreamingEventProcessor.toType(): ProcessorMode {
         return when (this) {
@@ -84,7 +63,7 @@ class ProcessorReportCreator(
         }
     }
 
-    private fun EventTrackerStatus.toStatus() = SegmentStatus(
+    private fun EventTrackerStatus.toStatus(name: String) = SegmentStatus(
         segment = this.segment.segmentId,
         mergeableSegment = this.segment.mergeableSegmentId(),
         oneOf = this.segment.mask + 1,
@@ -92,6 +71,7 @@ class ProcessorReportCreator(
         error = this.isErrorState,
         errorType = this.error?.javaClass?.typeName,
         errorMessage = this.error?.message,
-        position = this.currentPosition.orElse(-1L),
+        ingestLatency = metricsRegistry.ingestLatencyForProcessor(name, this.segment.segmentId).getValue(),
+        commitLatency = metricsRegistry.commitLatencyForProcessor(name, this.segment.segmentId).getValue(),
     )
 }

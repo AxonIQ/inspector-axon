@@ -45,7 +45,7 @@ class ServerProcessorReporter(
             try {
                 this.report()
             } catch (e: Exception) {
-                logger.error("Was unable to report processor metrics: {}", e.message)
+                logger.error("Was unable to report processor metrics: {}", e.message, e)
             }
         }, 1000, 1000, TimeUnit.MILLISECONDS)
     }

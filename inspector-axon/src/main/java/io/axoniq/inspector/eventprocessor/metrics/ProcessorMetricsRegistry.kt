@@ -22,25 +22,37 @@ import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
 
 class ProcessorMetricsRegistry {
-    private val ingestLatencyRegistry: MutableMap<String, ExpiringLatencyValue> = ConcurrentHashMap()
-    private val commitLatencyRegistry: MutableMap<String, ExpiringLatencyValue> = ConcurrentHashMap()
+    private val ingestLatencyRegistry: MutableMap<String, MutableMap<Int, ExpiringLatencyValue>> = ConcurrentHashMap()
+    private val commitLatencyRegistry: MutableMap<String, MutableMap<Int, ExpiringLatencyValue>> = ConcurrentHashMap()
 
-    fun registerIngested(processor: String, latencyInNanos: Long) {
-        ingestLatencyForProcessor(processor).setValue(latencyInNanos.toDouble() / 1000000)
+    fun registerIngested(processor: String, segment: Int, latencyInNanos: Long) {
+        ingestLatencyForProcessor(processor, segment).setValue(latencyInNanos.toDouble() / 1000000)
     }
 
-    fun registerCommitted(processor: String, latencyInNanos: Long) {
-        commitLatencyForProcessor(processor).setValue(latencyInNanos.toDouble() / 1000000)
+    fun registerCommitted(processor: String, segment: Int, latencyInNanos: Long) {
+        commitLatencyForProcessor(processor, segment).setValue(latencyInNanos.toDouble() / 1000000)
     }
 
-    fun ingestLatencyForProcessor(processor: String) =
-        ingestLatencyRegistry.computeIfAbsent(processor) { ExpiringLatencyValue() }
+    fun ingestLatencyForProcessor(processor: String): Double {
+        val map = ingestLatencyRegistry[processor] ?: return 0.0
+        return map.values.maxOf { it.getValue() }
+    }
 
-    fun commitLatencyForProcessor(processor: String) =
-        commitLatencyRegistry.computeIfAbsent(processor) { ExpiringLatencyValue() }
+    fun ingestLatencyForProcessor(processor: String, segment: Int): ExpiringLatencyValue {
+        return ingestLatencyRegistry.computeIfAbsent(processor) { mutableMapOf() }.computeIfAbsent(segment) { ExpiringLatencyValue() }
+    }
+
+    fun commitLatencyForProcessor(processor: String): Double {
+        val map = commitLatencyRegistry[processor] ?: return 0.0
+        return map.values.maxOf { it.getValue() }
+    }
+
+    fun commitLatencyForProcessor(processor: String, segment: Int): ExpiringLatencyValue {
+        return commitLatencyRegistry.computeIfAbsent(processor) { mutableMapOf() }.computeIfAbsent(segment) { ExpiringLatencyValue() }
+    }
 
     class ExpiringLatencyValue(
-        private val expiryTime: Long = 30000 // Default to 30 seconds
+        private val expiryTime: Long = 30 * 60 * 1000 // Default to 1 hour
     ) {
         private val clock = Clock.systemUTC()
         private val value: AtomicReference<Double> = AtomicReference(-1.0)
@@ -55,7 +67,7 @@ class ProcessorMetricsRegistry {
             if (value.get() != null && clock.millis() - timeSet.get() < expiryTime) {
                 return value.get()
             }
-            return -1.0
+            return 0.0
         }
     }
 }

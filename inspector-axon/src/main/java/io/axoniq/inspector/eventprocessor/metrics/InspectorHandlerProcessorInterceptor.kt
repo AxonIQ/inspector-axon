@@ -40,13 +40,16 @@ class InspectorHandlerProcessorInterceptor(
         unitOfWork.resources()[INSPECTOR_PROCESSING_GROUP] = processorName
         val message = unitOfWork.message
         if (message is EventMessage) {
+            val segment = unitOfWork.resources()["Processor[$processorName]/SegmentId"] as? Int ?: -1
             processorMetricsRegistry.registerIngested(
                 processorName,
+                segment,
                 ChronoUnit.NANOS.between(message.timestamp, Instant.now())
             )
             unitOfWork.afterCommit {
                 processorMetricsRegistry.registerCommitted(
                     processorName,
+                    segment,
                     ChronoUnit.NANOS.between(message.timestamp, Instant.now())
                 )
             }
