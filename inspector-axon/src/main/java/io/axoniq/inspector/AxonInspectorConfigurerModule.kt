@@ -32,12 +32,13 @@ import org.axonframework.config.Configurer
 import org.axonframework.config.ConfigurerModule
 import org.axonframework.eventsourcing.EventSourcingRepository
 import org.axonframework.eventsourcing.eventstore.EventStore
+import org.axonframework.modelling.command.Repository
 import org.axonframework.tracing.SpanFactory
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 
 class AxonInspectorConfigurerModule(
-    private val properties: io.axoniq.inspector.AxonInspectorProperties
+    private val properties: AxonInspectorProperties
 ) : ConfigurerModule {
 
     override fun configureModule(configurer: Configurer) {
@@ -122,10 +123,9 @@ class AxonInspectorConfigurerModule(
 
             it.onStart {
                 it.findModules(AggregateConfiguration::class.java).forEach { ac ->
-                    val repo = ac.repository()
+                    val repo = ac.repository().unwrapPossiblyDecoratedClass(Repository::class.java)
                     if (repo is EventSourcingRepository) {
-                        val field =
-                            ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
+                        val field = ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
                         if (field != null) {
                             val current = ReflectionUtils.getFieldValue<EventStore>(field, repo)
                             if (current !is InspectorWrappedEventStore) {

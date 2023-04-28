@@ -17,13 +17,17 @@
 package io.axoniq.inspector.client
 
 import io.axoniq.inspector.api.*
-import io.axoniq.inspector.api.InspectorMeasuringHandlerInterceptor
+import io.axoniq.inspector.unwrapPossiblyDecoratedClass
+import org.axonframework.commandhandling.CommandBus
 import org.axonframework.common.ReflectionUtils
 import org.axonframework.config.Configuration
 import org.axonframework.config.EventProcessingModule
 import org.axonframework.eventhandling.MultiStreamableMessageSource
 import org.axonframework.eventhandling.StreamingEventProcessor
+import org.axonframework.eventhandling.tokenstore.TokenStore
+import org.axonframework.eventsourcing.eventstore.EventStore
 import org.axonframework.messaging.StreamableMessageSource
+import org.axonframework.queryhandling.QueryBus
 import org.axonframework.serialization.upcasting.Upcaster
 import org.axonframework.util.MavenArtifactVersionResolver
 import java.time.temporal.ChronoUnit
@@ -95,7 +99,7 @@ class SetupPayloadCreator(
         "org.axonframework.extensions.springcloud:axon-springcloud",
         "org.axonframework.extensions.tracing:axon-tracing",
         "io.axoniq:axonserver-connector-java",
-        "io.axoniq.inspector.connectors:inspector-framework-module",
+        "io.axoniq.inspector:inspector-axon",
     )
 
     private fun versionInformation(): Versions {
@@ -115,9 +119,9 @@ class SetupPayloadCreator(
     }
 
     private fun queryBusInformation(): QueryBusInformation {
-        val bus = configuration.queryBus()
+        val bus = configuration.queryBus().unwrapPossiblyDecoratedClass(QueryBus::class.java)
         val axonServer = bus::class.java.name == "org.axonframework.axonserver.connector.query.AxonServerQueryBus"
-        val localSegmentType = if (axonServer) bus.getPropertyType("localSegment") else null
+        val localSegmentType = if (axonServer) bus.getPropertyTypeNested("localSegment", QueryBus::class.java) else null
         val context = if (axonServer) bus.getPropertyValue<String>("context") else null
         val handlerInterceptors = if (axonServer) {
             bus.getPropertyValue<Any>("localSegment")?.getInterceptors("handlerInterceptors") ?: emptyList()
@@ -144,7 +148,7 @@ class SetupPayloadCreator(
     }
 
     private fun eventBusInformation(): EventStoreInformation {
-        val bus = configuration.eventBus()
+        val bus = configuration.eventBus().unwrapPossiblyDecoratedClass(EventStore::class.java)
         val axonServer =
             bus::class.java.name == "org.axonframework.axonserver.connector.event.axon.AxonServerEventStore"
         val context = if (axonServer) {
@@ -162,9 +166,9 @@ class SetupPayloadCreator(
     }
 
     private fun commandBusInformation(): CommandBusInformation {
-        val bus = configuration.commandBus()
+        val bus = configuration.commandBus().unwrapPossiblyDecoratedClass(CommandBus::class.java)
         val axonServer = bus::class.java.name == "org.axonframework.axonserver.connector.command.AxonServerCommandBus"
-        val localSegmentType = if (axonServer) bus.getPropertyType("localSegment") else null
+        val localSegmentType = if (axonServer) bus.getPropertyTypeNested("localSegment", CommandBus::class.java) else null
         val context = if (axonServer) bus.getPropertyValue<String>("context") else null
         val handlerInterceptors = if (axonServer) {
             bus.getPropertyValue<Any>("localSegment")?.getInterceptors("handlerInterceptors", "invokerInterceptors")
@@ -202,10 +206,19 @@ class SetupPayloadCreator(
         ).let { it::class.java.name }
     }
 
+    private fun Any.getPropertyTypeNested(fieldName: String, clazz: Class<out Any>): String {
+        return ReflectionUtils.getMemberValue<Any>(
+            ReflectionUtils.fieldsOf(this::class.java).first { it.name == fieldName },
+            this
+        )
+            .let { it.unwrapPossiblyDecoratedClass(clazz) }
+            .let { it::class.java.name }
+    }
+
     private fun StreamingEventProcessor.getBatchSize(): Int = getPropertyValue("batchSize") ?: -1
-    private fun StreamingEventProcessor.getMessageSource(): String = getPropertyType("messageSource")
+    private fun StreamingEventProcessor.getMessageSource(): String = getPropertyTypeNested("messageSource", EventStore::class.java)
     private fun StreamingEventProcessor.getTokenClaimInterval(): Long = getPropertyValue("tokenClaimInterval") ?: -1
-    private fun StreamingEventProcessor.getStoreTokenStoreType(): String = getPropertyType("tokenStore")
+    private fun StreamingEventProcessor.getStoreTokenStoreType(): String = getPropertyTypeNested("tokenStore", TokenStore::class.java)
     private fun StreamingEventProcessor.getStoreTokenClaimTimeout(): Long = getPropertyValue<Any>("tokenStore")
         ?.getPropertyValue<TemporalAmount>("claimTimeout")?.let { it.get(ChronoUnit.SECONDS) * 1000 } ?: -1
 
