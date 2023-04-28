@@ -22,8 +22,7 @@ updates:
   labels:
     - "Type: Dependency Upgrade"
     - "Priority 1: Must"
-    - "Status: In Progress"
-  milestone: 1
+  milestone: 4
   reviewers:
     - "gklijs"
     - "Morlack" # Main
