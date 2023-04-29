@@ -1,9 +1,3 @@
-package io.axoniq.inspector
-
-import org.axonframework.common.ReflectionUtils
-import java.lang.reflect.Field
-import kotlin.reflect.KClass
-
 /*
  * Copyright (c) 2022-2023. Inspector Axon
  *
@@ -19,6 +13,11 @@ import kotlin.reflect.KClass
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.axoniq.inspector
+
+import org.axonframework.common.ReflectionUtils
+import java.lang.reflect.Field
+import kotlin.reflect.KClass
 
 /**
  * Find fields matching its own type. If found, it will unwrap the deeper value.
