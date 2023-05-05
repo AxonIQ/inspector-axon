@@ -11,3 +11,9 @@ For actual configuration, please consult the setup instructions that will be pro
 [You can visit Inspector Axon here.](https://inspector.axoniq.io)
 
 Built with ❤ by the Axon Framework team
+
+## Spring Boot Starter
+
+### application properties
+
+* `axon.inspector.enabled` - allows disabling the autoconfiguration via `axon.inspector.enabled=false`, default: `true`
