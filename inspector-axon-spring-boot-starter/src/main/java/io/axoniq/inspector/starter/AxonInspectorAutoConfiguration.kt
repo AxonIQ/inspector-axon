@@ -36,6 +36,7 @@ import org.springframework.context.annotation.Bean
 
 @AutoConfiguration
 @EnableConfigurationProperties(InspectorProperties::class)
+@ConditionalOnProperty(name = ["axon.inspector.enabled"], matchIfMissing = true)
 class AxonInspectorAutoConfiguration {
     private val logger = LoggerFactory.getLogger(this::class.java)
 
