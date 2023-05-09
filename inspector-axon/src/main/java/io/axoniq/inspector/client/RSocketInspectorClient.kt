@@ -53,6 +53,7 @@ class RSocketInspectorClient(
 
     override fun registerLifecycleHandlers(registry: Lifecycle.LifecycleRegistry) {
         registry.onStart(Phase.EXTERNAL_CONNECTIONS, this::start)
+        registry.onShutdown(Phase.EXTERNAL_CONNECTIONS, this::dispose)
     }
 
     fun send(route: String, payload: Any): Mono<Void> {

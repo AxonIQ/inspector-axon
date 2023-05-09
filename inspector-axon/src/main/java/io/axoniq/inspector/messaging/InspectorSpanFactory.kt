@@ -22,15 +22,12 @@ import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
 import org.axonframework.tracing.Span
 import org.axonframework.tracing.SpanAttributesProvider
 import org.axonframework.tracing.SpanFactory
-import org.axonframework.tracing.SpanScope
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Supplier
 
 
-class InspectorSpanFactory(
-    private val registry: HandlerMetricsRegistry
-) : SpanFactory {
+class InspectorSpanFactory : SpanFactory {
     private val logger = LoggerFactory.getLogger(this::class.java)
 
     companion object {
@@ -108,7 +105,7 @@ class InspectorSpanFactory(
         private fun report(end: Long) {
             logger.trace("Reporting span for message id $messageId = $handlerMetricIdentifier")
             val success = handlerSuccessful && transactionSuccessful
-            registry.registerMessageHandled(
+            HandlerMetricsRegistry.getInstance()?.registerMessageHandled(
                 handler = handlerMetricIdentifier!!,
                 success = success,
                 duration = end - timeStarted!!,
@@ -116,7 +113,7 @@ class InspectorSpanFactory(
             )
             if(success) {
                 dispatchedMessages.forEach {
-                    registry.registerMessageDispatchedDuringHandling(
+                    HandlerMetricsRegistry.getInstance()?.registerMessageDispatchedDuringHandling(
                         DispatcherStatisticIdentifier(handlerMetricIdentifier, it)
                     )
                 }
