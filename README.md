@@ -1,5 +1,7 @@
 # Inspector Axon
 
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.axoniq.inspector/inspector-axon/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.axoniq.inspector/inspector-axon)
+
 Inspector Axon superpowers your Axon Framework application with advanced monitoring and enabling easy access to actions
 within the framework.
 
