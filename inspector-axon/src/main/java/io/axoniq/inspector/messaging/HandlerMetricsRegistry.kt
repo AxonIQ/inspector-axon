@@ -44,7 +44,22 @@ class HandlerMetricsRegistry(
         lifecycle.onStart(Phase.INSTRUCTION_COMPONENTS, this::start)
     }
 
+    companion object {
+        private var instance: HandlerMetricsRegistry? = null
+        private var started: Boolean = false
+
+        /**
+         * Gets the current instance
+         */
+        fun getInstance() = instance
+    }
+
     fun start() {
+        if(instance != null) {
+            logger.debug("HandlerMetricRegistry instance already started. Skipping new.")
+            return
+        }
+        instance = this
         executor.scheduleAtFixedRate({
             try {
                 val stats = getStats()
@@ -54,6 +69,7 @@ class HandlerMetricsRegistry(
                 logger.warn("No metrics could be reported to Inspector Axon: {}", e.message)
             }
         }, 10, 10, TimeUnit.SECONDS)
+        started = true
     }
 
     private fun getStats(): StatisticReport {

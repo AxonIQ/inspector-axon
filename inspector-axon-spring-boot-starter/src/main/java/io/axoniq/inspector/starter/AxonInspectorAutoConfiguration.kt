@@ -18,10 +18,7 @@ package io.axoniq.inspector.starter
 
 import io.axoniq.inspector.AxonInspectorConfigurerModule
 import io.axoniq.inspector.AxonInspectorProperties
-import io.axoniq.inspector.messaging.HandlerMetricsRegistry
-import io.axoniq.inspector.messaging.InspectorHandlerEnhancerDefinition
 import io.axoniq.inspector.messaging.InspectorSpanFactory
-import org.axonframework.config.Configuration
 import org.axonframework.config.ConfigurerModule
 import org.axonframework.tracing.MultiSpanFactory
 import org.axonframework.tracing.NoOpSpanFactory
@@ -77,12 +74,12 @@ class AxonInspectorAutoConfiguration {
 
     @Bean
     @ConditionalOnProperty("axon.inspector.credentials", matchIfMissing = false)
-    fun spanFactoryInspectorPostProcessor(configuration: Configuration) = object : BeanPostProcessor {
-        override fun postProcessBeforeInitialization(bean: Any, beanName: String): Any {
+    fun spanFactoryInspectorPostProcessor(): BeanPostProcessor = object : BeanPostProcessor {
+        override fun postProcessAfterInitialization(bean: Any, beanName: String): Any {
             if (bean !is SpanFactory || bean is InspectorSpanFactory) {
                 return bean
             }
-            val spanFactory = InspectorSpanFactory(configuration.getComponent(HandlerMetricsRegistry::class.java))
+            val spanFactory = InspectorSpanFactory()
             if (bean is NoOpSpanFactory) {
                 return spanFactory
             }

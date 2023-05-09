@@ -25,7 +25,10 @@ import io.axoniq.inspector.client.strategy.RSocketPayloadEncodingStrategy
 import io.axoniq.inspector.eventprocessor.*
 import io.axoniq.inspector.eventprocessor.metrics.InspectorHandlerProcessorInterceptor
 import io.axoniq.inspector.eventprocessor.metrics.ProcessorMetricsRegistry
-import io.axoniq.inspector.messaging.*
+import io.axoniq.inspector.messaging.HandlerMetricsRegistry
+import io.axoniq.inspector.messaging.InspectorDispatchInterceptor
+import io.axoniq.inspector.messaging.InspectorSpanFactory
+import io.axoniq.inspector.messaging.InspectorWrappedEventStore
 import org.axonframework.common.ReflectionUtils
 import org.axonframework.config.AggregateConfiguration
 import org.axonframework.config.Configurer
@@ -105,9 +108,7 @@ class AxonInspectorConfigurerModule(
                     executor,
                 )
             }
-            .registerComponent(SpanFactory::class.java) {
-                InspectorSpanFactory(it.getComponent(HandlerMetricsRegistry::class.java))
-            }
+            .registerComponent(SpanFactory::class.java) { InspectorSpanFactory() }
             .eventProcessing()
             .registerDefaultHandlerInterceptor { config, name ->
                 InspectorHandlerProcessorInterceptor(
@@ -120,12 +121,14 @@ class AxonInspectorConfigurerModule(
             it.getComponent(ServerProcessorReporter::class.java)
             it.getComponent(RSocketProcessorResponder::class.java)
             it.getComponent(RSocketDlqResponder::class.java)
+            it.getComponent(HandlerMetricsRegistry::class.java)
 
             it.onStart {
                 it.findModules(AggregateConfiguration::class.java).forEach { ac ->
                     val repo = ac.repository().unwrapPossiblyDecoratedClass(Repository::class.java)
                     if (repo is EventSourcingRepository) {
-                        val field = ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
+                        val field =
+                            ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
                         if (field != null) {
                             val current = ReflectionUtils.getFieldValue<EventStore>(field, repo)
                             if (current !is InspectorWrappedEventStore) {
@@ -147,6 +150,10 @@ class AxonInspectorConfigurerModule(
             config.commandBus().registerDispatchInterceptor(interceptor)
             config.queryBus().registerDispatchInterceptor(interceptor)
             config.deadlineManager()?.registerDispatchInterceptor(interceptor)
+        }
+
+        configurer.onShutdown {
+            executor.shutdown()
         }
     }
 }
