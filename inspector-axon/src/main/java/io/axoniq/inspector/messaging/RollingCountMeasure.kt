@@ -16,35 +16,35 @@
 
 package io.axoniq.inspector.messaging
 
-import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.ConcurrentHashMap
+
+const val BUCKET_SIZE = 2500
+const val BUCKET_COUNT = 60000 / BUCKET_SIZE
 
 /**
- * Rolls up for every report, which is sent every ten seconds.
- * Since it keeps 6 values, we get the amount of the last minute, updating every 10 seconds
+ * Keeps a count values, returning the times the counter was incremented in the last minute.
+ * This is done by keeping an integer in buckets of 2.5 seconds. When the value is queried,
+ * all buckets of the last minute + 2.5 seconds are queried, excluding the last one to exclude incomplete buckets.
+ *
+ * Data is not cleaned automatically for performance reasons. It is only cleaned when the value is retrieved.
  */
 class RollingCountMeasure {
-    private var count1 = AtomicLong(0)
-    private var count2 = AtomicLong(0)
-    private var count3 = AtomicLong(0)
-    private var count4 = AtomicLong(0)
-    private var count5 = AtomicLong(0)
-    private var count6 = AtomicLong(0)
+    private val countMap = ConcurrentHashMap<Long, Int>()
 
     fun increment() {
-        count1.incrementAndGet()
+        countMap.compute(currentBucket()) { _, v -> (v ?: 0) + 1 }
     }
 
-    fun incrementWindow() {
-        count6 = count5
-        count5 = count4
-        count4 = count3
-        count3 = count2
-        count2 = count1
-        count1.set(0)
+    fun count(): Double {
+        val bucket = currentBucket()
+        val minimumBucket = (bucket - BUCKET_COUNT)
+        val toRemove = countMap.keys.filter { it < minimumBucket }
+        toRemove.forEach { countMap.remove(it) }
+
+        return countMap.filter { it.key in minimumBucket until bucket }.values.sum().toDouble()
     }
 
-    fun value(): Double {
-        val total = count1.get() + count2.get() + count3.get() + count4.get() + count5.get() + count6.get()
-        return total.toDouble()
+    private fun currentBucket(): Long {
+        return System.currentTimeMillis() / BUCKET_SIZE
     }
 }

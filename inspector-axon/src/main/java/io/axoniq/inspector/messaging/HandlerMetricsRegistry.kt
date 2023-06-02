@@ -55,7 +55,7 @@ class HandlerMetricsRegistry(
     }
 
     fun start() {
-        if(instance != null) {
+        if (instance != null) {
             logger.debug("HandlerMetricRegistry instance already started. Skipping new.")
             return
         }
@@ -78,8 +78,8 @@ class HandlerMetricsRegistry(
                 .map {
                     HandlerStatisticsWithIdentifier(
                         it.key, HandlerStatistics(
-                            it.value.totalCount.value(),
-                            it.value.failureCount.value(),
+                            it.value.totalCount.count(),
+                            it.value.failureCount.count(),
                             it.value.totalTimer.takeSnapshot().toDistribution(),
                             it.value.metrics.map { (k, v) -> k.fullIdentifier to v.takeSnapshot().toDistribution() }
                                 .toMap()
@@ -90,31 +90,21 @@ class HandlerMetricsRegistry(
                 .map {
                     DispatcherStatisticsWithIdentifier(
                         it.key,
-                        DispatcherStatistics(it.value.value())
+                        DispatcherStatistics(it.value.count())
                     )
                 },
             aggregates = aggregates.entries
                 .map {
                     AggregateStatisticsWithIdentifier(
                         it.key, AggregateStatistics(
-                            it.value.totalCount.value(),
-                            it.value.failureCount.value(),
+                            it.value.totalCount.count(),
+                            it.value.failureCount.count(),
                             it.value.totalTimer.takeSnapshot().toDistribution(),
                             it.value.metrics.map { (k, v) -> k.fullIdentifier to v.takeSnapshot().toDistribution() }
                                 .toMap()
                         )
                     )
                 })
-
-        handlers.values.forEach {
-            it.totalCount.incrementWindow()
-            it.failureCount.incrementWindow()
-        }
-        dispatches.values.forEach { it.incrementWindow() }
-        aggregates.values.forEach {
-            it.totalCount.incrementWindow()
-            it.failureCount.incrementWindow()
-        }
         return flow
     }
 
