@@ -105,16 +105,6 @@ class HandlerMetricsRegistry(
                         )
                     )
                 })
-
-        handlers.values.forEach {
-            it.totalCount.pruneData()
-            it.failureCount.pruneData()
-        }
-        dispatches.values.forEach { it.pruneData() }
-        aggregates.values.forEach {
-            it.totalCount.pruneData()
-            it.failureCount.pruneData()
-        }
         return flow
     }
 
