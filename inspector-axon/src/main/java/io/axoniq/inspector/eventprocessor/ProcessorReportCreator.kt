@@ -49,8 +49,6 @@ class ProcessorReportCreator(
                     sep.maxCapacity(),
                     sep.processingStatus().filterValues { !it.isErrorState }.size,
                     sep.processingStatus().map { (_, segment) -> segment.toStatus(entry.key) },
-                    metricsRegistry.ingestLatencyForProcessor(entry.key),
-                    metricsRegistry.commitLatencyForProcessor(entry.key),
                 )
             }
     )

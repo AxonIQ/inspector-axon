@@ -21,6 +21,7 @@ import org.axonframework.eventhandling.EventMessage
 import org.axonframework.messaging.InterceptorChain
 import org.axonframework.messaging.Message
 import org.axonframework.messaging.MessageHandlerInterceptor
+import org.axonframework.messaging.unitofwork.BatchingUnitOfWork
 import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
 import org.axonframework.messaging.unitofwork.UnitOfWork
 import org.axonframework.serialization.UnknownSerializedType
@@ -46,12 +47,14 @@ class InspectorHandlerProcessorInterceptor(
                 segment,
                 ChronoUnit.NANOS.between(message.timestamp, Instant.now())
             )
-            unitOfWork.afterCommit {
-                processorMetricsRegistry.registerCommitted(
-                    processorName,
-                    segment,
-                    ChronoUnit.NANOS.between(message.timestamp, Instant.now())
-                )
+            if(unitOfWork !is BatchingUnitOfWork<*> || unitOfWork.isLastMessage) {
+                unitOfWork.afterCommit {
+                    processorMetricsRegistry.registerCommitted(
+                        processorName,
+                        segment,
+                        ChronoUnit.NANOS.between(message.timestamp, Instant.now())
+                    )
+                }
             }
         }
         return interceptorChain.proceed()

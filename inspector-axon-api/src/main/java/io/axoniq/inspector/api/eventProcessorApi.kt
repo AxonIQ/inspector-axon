@@ -38,8 +38,6 @@ data class ProcessorStatus(
     val segmentCapacity: Int,
     val activeSegments: Int,
     val segments: List<SegmentStatus>,
-    val ingestLatency: Double,
-    val commitLatency: Double,
 )
 
 data class ProcessingGroupStatus(

@@ -33,18 +33,8 @@ class ProcessorMetricsRegistry {
         commitLatencyForProcessor(processor, segment).setValue(latencyInNanos.toDouble() / 1000000)
     }
 
-    fun ingestLatencyForProcessor(processor: String): Double {
-        val map = ingestLatencyRegistry[processor] ?: return 0.0
-        return map.values.maxOf { it.getValue() }
-    }
-
     fun ingestLatencyForProcessor(processor: String, segment: Int): ExpiringLatencyValue {
         return ingestLatencyRegistry.computeIfAbsent(processor) { mutableMapOf() }.computeIfAbsent(segment) { ExpiringLatencyValue() }
-    }
-
-    fun commitLatencyForProcessor(processor: String): Double {
-        val map = commitLatencyRegistry[processor] ?: return 0.0
-        return map.values.maxOf { it.getValue() }
     }
 
     fun commitLatencyForProcessor(processor: String, segment: Int): ExpiringLatencyValue {
