@@ -68,7 +68,7 @@ class AxonInspectorAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnProperty("axon.inspector.credentials", matchIfMissing = true)
+    @ConditionalOnProperty("axon.inspector.credentials", havingValue = "", matchIfMissing = true)
     fun missingInspectorAxonCredentialsConfigurerModule() = ConfigurerModule {
         logger.warn("No credentials were provided for the connection to Inspector Axon. Please provide them as instructed through the 'axon.inspector.credentials' property.")
     }
