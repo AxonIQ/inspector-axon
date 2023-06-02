@@ -48,7 +48,7 @@ class InspectorMeasuringHandlerInterceptor(
         }
 
         val time = (endBefore!! - start) + (end - startAfter!!)
-        InspectorSpanFactory.onTopLevelSpanIfActive(unitOfWork.message) {
+        InspectorSpanFactory.onTopLevelSpanIfActive {
             val metric = UserHandlerInterceptorMetric(identifier = "mhi_$name")
             it.registerMetricValue(metric, time)
         }

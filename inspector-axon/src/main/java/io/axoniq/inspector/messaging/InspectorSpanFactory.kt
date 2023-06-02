@@ -28,26 +28,25 @@ import java.util.function.Supplier
 
 
 class InspectorSpanFactory : SpanFactory {
-    private val logger = LoggerFactory.getLogger(this::class.java)
 
     companion object {
+        private val logger = LoggerFactory.getLogger(this::class.java)
         private val NOOP_SPAN = NoopSpan()
         private val ACTIVE_ROOT_SPANS = ConcurrentHashMap<String, MeasuringInspectorSpan>()
         private val CURRENT_MESSAGE_ID = ThreadLocal<String>()
-
-        fun onTopLevelSpanIfActive(message: Message<*>, block: (MeasuringInspectorSpan) -> Unit) {
-            onTopLevelSpanIfActive(message.identifier, block)
-        }
-
-        fun onTopLevelSpanIfActive(messageId: String, block: (MeasuringInspectorSpan) -> Unit) {
-            ACTIVE_ROOT_SPANS[messageId]?.let(block)
-        }
 
         fun onTopLevelSpanIfActive(block: (MeasuringInspectorSpan) -> Unit) {
             if (CURRENT_MESSAGE_ID.get() == null) {
                 return
             }
-            ACTIVE_ROOT_SPANS[CURRENT_MESSAGE_ID.get()]?.let(block)
+
+            ACTIVE_ROOT_SPANS[CURRENT_MESSAGE_ID.get()]?.let {
+                try {
+                    block(it)
+                } catch (e: Exception) {
+                    logger.info("Was unable to report Inspector Axon metrics", e)
+                }
+            }
         }
     }
 
@@ -63,7 +62,10 @@ class InspectorSpanFactory : SpanFactory {
         // Additional metrics that can be registered by other spans for processors
         private val metrics: MutableMap<Metric, Long> = mutableMapOf()
 
-        fun registerHandler(handlerMetricIdentifier: HandlerStatisticsMetricIdentifier, time: Long) {
+        fun registerHandler(handlerMetricIdentifier: HandlerStatisticsMetricIdentifier?, time: Long) {
+            if(handlerMetricIdentifier == null) {
+                return
+            }
             this.handlerMetricIdentifier = handlerMetricIdentifier
             this.registerMetricValue(PreconfiguredMetric.MESSAGE_HANDLER_TIME, time)
         }
