@@ -18,6 +18,9 @@ package io.axoniq.inspector.messaging
 
 import java.util.concurrent.ConcurrentHashMap
 
+const val BUCKET_SIZE = 2500
+const val BUCKET_COUNT = 60000 / BUCKET_SIZE
+
 /**
  * Keeps a count values, returning the times the counter was incremented in the last minute.
  * This is done by keeping an integer in buckets of 2.5 seconds. When the value is queried,
@@ -34,15 +37,14 @@ class RollingCountMeasure {
 
     fun count(): Double {
         val bucket = currentBucket()
-        val toRemove = countMap.keys.filter { it < (bucket - 60000) }
+        val minimumBucket = (bucket - BUCKET_COUNT)
+        val toRemove = countMap.keys.filter { it < minimumBucket }
         toRemove.forEach { countMap.remove(it) }
 
-        val minimumBucket = bucket - 60000
         return countMap.filter { it.key in minimumBucket until bucket }.values.sum().toDouble()
     }
 
     private fun currentBucket(): Long {
-        val time = System.currentTimeMillis()
-        return time - time % 2500
+        return System.currentTimeMillis() / BUCKET_SIZE
     }
 }
