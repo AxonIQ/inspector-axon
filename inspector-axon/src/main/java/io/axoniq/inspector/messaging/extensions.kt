@@ -31,7 +31,10 @@ import org.axonframework.modelling.command.AggregateLifecycle
 import org.axonframework.modelling.command.AggregateScopeDescriptor
 import org.axonframework.queryhandling.QueryMessage
 import org.axonframework.queryhandling.SubscriptionQueryUpdateMessage
+import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
+
+private val logger = LoggerFactory.getLogger("inspector-extensions")
 
 fun Message<*>.toInformation() = MessageIdentifier(
     when (this) {
@@ -52,7 +55,7 @@ fun Message<*>.toInformation() = MessageIdentifier(
 
 fun String.toSimpleName() = split(".").last()
 
-fun UnitOfWork<*>.extractHandler(): HandlerStatisticsMetricIdentifier {
+fun UnitOfWork<*>.extractHandler(): HandlerStatisticsMetricIdentifier? = try {
     val processingGroup = resources()[INSPECTOR_PROCESSING_GROUP] as? String?
     val isAggregate = message is CommandMessage<*> && isAggregateLifecycleActive()
     val isProcessor = processingGroup != null
@@ -67,17 +70,21 @@ fun UnitOfWork<*>.extractHandler(): HandlerStatisticsMetricIdentifier {
         isProcessor -> HandlerType.EventProcessor
         else -> HandlerType.Message
     }
-    return HandlerStatisticsMetricIdentifier(
+    HandlerStatisticsMetricIdentifier(
         type = type,
         component = component,
         message = message.toInformation(),
     )
+} catch (e: Exception) {
+    logger.warn("Could not extract handler from Inspector invocation. Skipping registration of message.", e)
+    null
 }
+
 
 fun isAggregateLifecycleActive(): Boolean {
     return try {
-        AggregateLifecycle.describeCurrentScope()
-        true
+        val scope = AggregateLifecycle.describeCurrentScope()
+        scope is AggregateScopeDescriptor
     } catch (e: Exception) {
         false
     }

@@ -38,6 +38,10 @@ data class ProcessorStatus(
     val segmentCapacity: Int,
     val activeSegments: Int,
     val segments: List<SegmentStatus>,
+    @Deprecated(message = "Will be removed in 0.1.6+")
+    val ingestLatency: Double = 0.0,
+    @Deprecated(message = "Will be removed in 0.1.6+")
+    val commitLatency: Double = 0.0,
 )
 
 data class ProcessingGroupStatus(
