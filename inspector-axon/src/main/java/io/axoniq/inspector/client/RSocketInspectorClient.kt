@@ -133,6 +133,9 @@ class RSocketInspectorClient(
         val client = TcpClient.create()
             .host(properties.host)
             .port(properties.port)
+            .doOnDisconnected {
+                connected = false
+            }
         return if (properties.secure) {
             return client.secure()
         } else client
