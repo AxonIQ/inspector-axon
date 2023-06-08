@@ -37,3 +37,15 @@ private fun <T : Any> T.fieldOfMatchingType(clazz: Class<out T>): Field? {
     return ReflectionUtils.fieldsOf(this::class.java)
         .firstOrNull { f -> f.type.isAssignableFrom(clazz) }
 }
+
+fun <K, V> MutableMap<K, V>.computeIfAbsentWithRetry(key: K, retries: Int = 0, defaultValue: (K) -> V): V {
+    try {
+        return computeIfAbsent(key, defaultValue)
+    } catch (e: ConcurrentModificationException) {
+        if(retries < 3) {
+            return computeIfAbsentWithRetry(key, retries + 1, defaultValue)
+        }
+        // We cannot get it from the map. Return the default value without putting it in, so the code can continue.
+        return defaultValue(key)
+    }
+}

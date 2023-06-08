@@ -17,6 +17,7 @@
 package io.axoniq.inspector.messaging
 
 import io.axoniq.inspector.api.metrics.*
+import io.axoniq.inspector.computeIfAbsentWithRetry
 import org.axonframework.messaging.Message
 import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
 import org.axonframework.tracing.Span
@@ -105,20 +106,24 @@ class InspectorSpanFactory : SpanFactory {
         }
 
         private fun report(end: Long) {
-            logger.trace("Reporting span for message id $messageId = $handlerMetricIdentifier")
-            val success = handlerSuccessful && transactionSuccessful
-            HandlerMetricsRegistry.getInstance()?.registerMessageHandled(
-                handler = handlerMetricIdentifier!!,
-                success = success,
-                duration = end - timeStarted!!,
-                metrics = metrics
-            )
-            if(success) {
-                dispatchedMessages.forEach {
-                    HandlerMetricsRegistry.getInstance()?.registerMessageDispatchedDuringHandling(
-                        DispatcherStatisticIdentifier(handlerMetricIdentifier, it)
-                    )
+            try {
+                logger.trace("Reporting span for message id $messageId = $handlerMetricIdentifier")
+                val success = handlerSuccessful && transactionSuccessful
+                HandlerMetricsRegistry.getInstance()?.registerMessageHandled(
+                    handler = handlerMetricIdentifier!!,
+                    success = success,
+                    duration = end - timeStarted!!,
+                    metrics = metrics
+                )
+                if (success) {
+                    dispatchedMessages.forEach {
+                        HandlerMetricsRegistry.getInstance()?.registerMessageDispatchedDuringHandling(
+                            DispatcherStatisticIdentifier(handlerMetricIdentifier, it)
+                        )
+                    }
                 }
+            } catch (e: Exception) {
+                logger.info("Could not report metrics for message $handlerMetricIdentifier", e)
             }
         }
 
@@ -193,7 +198,7 @@ class InspectorSpanFactory : SpanFactory {
         if (ACTIVE_ROOT_SPANS.containsKey(message.identifier)) {
             return NOOP_SPAN
         }
-        return ACTIVE_ROOT_SPANS.computeIfAbsent(message.identifier) {
+        return ACTIVE_ROOT_SPANS.computeIfAbsentWithRetry(message.identifier) {
             MeasuringInspectorSpan(message.identifier)
         }
     }

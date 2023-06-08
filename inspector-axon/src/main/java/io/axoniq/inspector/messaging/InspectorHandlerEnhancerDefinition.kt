@@ -16,6 +16,7 @@
 
 package io.axoniq.inspector.messaging
 
+import io.axoniq.inspector.computeIfAbsentWithRetry
 import org.axonframework.common.Priority
 import org.axonframework.config.ProcessingGroup
 import org.axonframework.messaging.Message
@@ -45,7 +46,7 @@ class InspectorHandlerEnhancerDefinition : HandlerEnhancerDefinition {
                 }
                 val uow = CurrentUnitOfWork.get()
                 uow.resources()[INSPECTOR_DECLARING_CLASS] = declaringClassName
-                uow.resources().computeIfAbsent(INSPECTOR_PROCESSING_GROUP) { processingGroup }
+                uow.resources().computeIfAbsentWithRetry(INSPECTOR_PROCESSING_GROUP) { processingGroup }
 
                 val start = System.nanoTime()
                 try {

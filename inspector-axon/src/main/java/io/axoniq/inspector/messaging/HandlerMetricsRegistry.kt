@@ -19,6 +19,7 @@ package io.axoniq.inspector.messaging
 import io.axoniq.inspector.api.Routes
 import io.axoniq.inspector.api.metrics.*
 import io.axoniq.inspector.client.RSocketInspectorClient
+import io.axoniq.inspector.computeIfAbsentWithRetry
 import io.micrometer.core.instrument.Timer
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.axonframework.lifecycle.Lifecycle
@@ -123,14 +124,14 @@ class HandlerMetricsRegistry(
         duration: Long,
         metrics: Map<Metric, Long>
     ) {
-        val handlerStats = handlers.computeIfAbsent(handler) { _ ->
+        val handlerStats = handlers.computeIfAbsentWithRetry(handler) { _ ->
             HandlerRegistryStatistics(createTimer(handler, "total"))
         }
         handlerStats.totalTimer.record(duration, TimeUnit.NANOSECONDS)
         metrics.filter { it.key.targetTypes.contains(MetricTargetType.HANDLER) }
             .forEach { (metric, value) ->
                 handlerStats.metrics
-                    .computeIfAbsent(metric) { createTimer(handler, metric.fullIdentifier) }
+                    .computeIfAbsentWithRetry(metric) { createTimer(handler, metric.fullIdentifier) }
                     .record(value, metric.type.distributionUnit)
             }
 
@@ -141,13 +142,13 @@ class HandlerMetricsRegistry(
 
         if (handler.type == HandlerType.Aggregate) {
             val id = AggregateStatisticIdentifier(handler.component!!)
-            val aggStats = aggregates.computeIfAbsent(id) { _ ->
+            val aggStats = aggregates.computeIfAbsentWithRetry(id) { _ ->
                 AggregateRegistryStatistics(createTimer(id, "total"))
             }
 
             metrics.filter { it.key.targetTypes.contains(MetricTargetType.AGGREGATE) }.forEach { (metric, value) ->
                 aggStats.metrics
-                    .computeIfAbsent(metric) { createTimer(id, metric.fullIdentifier) }
+                    .computeIfAbsentWithRetry(metric) { createTimer(id, metric.fullIdentifier) }
                     .record(value, metric.type.distributionUnit)
             }
             aggStats.totalTimer.record(duration, TimeUnit.NANOSECONDS)
@@ -162,7 +163,7 @@ class HandlerMetricsRegistry(
     fun registerMessageDispatchedDuringHandling(
         dispatcher: DispatcherStatisticIdentifier,
     ) {
-        dispatches.computeIfAbsent(dispatcher) { _ ->
+        dispatches.computeIfAbsentWithRetry(dispatcher) { _ ->
             RollingCountMeasure()
         }.increment()
     }

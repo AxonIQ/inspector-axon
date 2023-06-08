@@ -16,6 +16,7 @@
 
 package io.axoniq.inspector.eventprocessor.metrics
 
+import io.axoniq.inspector.computeIfAbsentWithRetry
 import java.time.Clock
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -34,11 +35,15 @@ class ProcessorMetricsRegistry {
     }
 
     fun ingestLatencyForProcessor(processor: String, segment: Int): ExpiringLatencyValue {
-        return ingestLatencyRegistry.computeIfAbsent(processor) { mutableMapOf() }.computeIfAbsent(segment) { ExpiringLatencyValue() }
+        return ingestLatencyRegistry
+            .computeIfAbsentWithRetry(processor) { mutableMapOf() }
+            .computeIfAbsentWithRetry(segment) { ExpiringLatencyValue() }
     }
 
     fun commitLatencyForProcessor(processor: String, segment: Int): ExpiringLatencyValue {
-        return commitLatencyRegistry.computeIfAbsent(processor) { mutableMapOf() }.computeIfAbsent(segment) { ExpiringLatencyValue() }
+        return commitLatencyRegistry
+            .computeIfAbsentWithRetry(processor) { mutableMapOf() }
+            .computeIfAbsentWithRetry(segment) { ExpiringLatencyValue() }
     }
 
     class ExpiringLatencyValue(

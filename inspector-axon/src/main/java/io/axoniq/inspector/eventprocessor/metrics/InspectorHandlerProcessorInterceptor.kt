@@ -25,6 +25,7 @@ import org.axonframework.messaging.unitofwork.BatchingUnitOfWork
 import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
 import org.axonframework.messaging.unitofwork.UnitOfWork
 import org.axonframework.serialization.UnknownSerializedType
+import org.slf4j.LoggerFactory
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
@@ -32,30 +33,35 @@ class InspectorHandlerProcessorInterceptor(
     private val processorMetricsRegistry: ProcessorMetricsRegistry,
     private val processorName: String,
 ) : MessageHandlerInterceptor<Message<*>> {
+    private val logger = LoggerFactory.getLogger(this::class.java)
 
     override fun handle(unitOfWork: UnitOfWork<out Message<*>>, interceptorChain: InterceptorChain): Any? {
         val uow = CurrentUnitOfWork.map { it }.orElse(null)
         if (uow == null || unitOfWork.message.payload is UnknownSerializedType) {
             return interceptorChain.proceed()
         }
-        unitOfWork.resources()[INSPECTOR_PROCESSING_GROUP] = processorName
-        val message = unitOfWork.message
-        if (message is EventMessage) {
-            val segment = unitOfWork.resources()["Processor[$processorName]/SegmentId"] as? Int ?: -1
-            processorMetricsRegistry.registerIngested(
-                processorName,
-                segment,
-                ChronoUnit.NANOS.between(message.timestamp, Instant.now())
-            )
-            if(unitOfWork !is BatchingUnitOfWork<*> || unitOfWork.isLastMessage) {
-                unitOfWork.afterCommit {
-                    processorMetricsRegistry.registerCommitted(
-                        processorName,
-                        segment,
-                        ChronoUnit.NANOS.between(message.timestamp, Instant.now())
-                    )
+        try {
+            unitOfWork.resources()[INSPECTOR_PROCESSING_GROUP] = processorName
+            val message = unitOfWork.message
+            if (message is EventMessage) {
+                val segment = unitOfWork.resources()["Processor[$processorName]/SegmentId"] as? Int ?: -1
+                processorMetricsRegistry.registerIngested(
+                    processorName,
+                    segment,
+                    ChronoUnit.NANOS.between(message.timestamp, Instant.now())
+                )
+                if (unitOfWork !is BatchingUnitOfWork<*> || unitOfWork.isLastMessage) {
+                    unitOfWork.afterCommit {
+                        processorMetricsRegistry.registerCommitted(
+                            processorName,
+                            segment,
+                            ChronoUnit.NANOS.between(message.timestamp, Instant.now())
+                        )
+                    }
                 }
             }
+        } catch (e: Exception) {
+            logger.info("Inspector Axon could not register metrics for processor $processorName", e)
         }
         return interceptorChain.proceed()
     }
