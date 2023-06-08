@@ -63,7 +63,7 @@ class RSocketInspectorClient(
         return rsocket
             .requestResponse(encodingStrategy.encode(payload, createRoutingMetadata(route)))
             .doOnError {
-                if (it.message!!.contains("Access Denied")) {
+                if (it.message?.contains("Access Denied") == true) {
                     logger.info("Was unable to send call to Inspector Axon since authentication was incorrect!")
                 }
             }
