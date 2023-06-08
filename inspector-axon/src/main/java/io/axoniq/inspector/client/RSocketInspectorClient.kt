@@ -133,16 +133,6 @@ class RSocketInspectorClient(
         val client = TcpClient.create()
             .host(properties.host)
             .port(properties.port)
-            .doOnConnected {
-                logger.info("Inspector Axon connected")
-            }
-            .doOnConnect {
-                logger.info("Inspector Axon connecting...")
-            }
-            .doOnDisconnected {
-                logger.info("Inspector Axon disconnected")
-                connected = false
-            }
         return if (properties.secure) {
             return client.secure()
         } else client
