@@ -49,10 +49,9 @@ class AxonInspectorAutoConfiguration {
             return ConfigurerModule {  }
         }
         val applicationName = properties.applicationName ?: applicationContext.id!!
-        val (workspaceId, environmentId, accessToken) = credentials.split(":")
+        val (environmentId, accessToken) = credentials.split(":")
         logger.info(
-            "Setting up Inspector Axon work Workspace {} and Environment {}. This application will be registered as {}",
-            workspaceId,
+            "Setting up Inspector Axon work Environment {}. This application will be registered as {}",
             environmentId,
             applicationName
         )
@@ -62,7 +61,6 @@ class AxonInspectorAutoConfiguration {
                 port = properties.port,
                 initialDelay = properties.initialDelay,
                 secure = properties.secure,
-                workspaceId = workspaceId,
                 environmentId = environmentId,
                 accessToken = accessToken,
                 applicationName = applicationName,

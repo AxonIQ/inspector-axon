@@ -17,7 +17,6 @@
 package io.axoniq.inspector
 
 class AxonInspectorProperties(
-    val workspaceId: String,
     val environmentId: String,
     val accessToken: String,
     val applicationName: String,

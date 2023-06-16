@@ -91,7 +91,6 @@ class RSocketInspectorClient(
     private fun createRSocket(): RSocket {
         val authentication = InspectorClientAuthentication(
             identification = InspectorClientIdentifier(
-                workspaceId = properties.workspaceId,
                 environmentId = properties.environmentId,
                 applicationName = properties.applicationName,
                 nodeName = nodeName
