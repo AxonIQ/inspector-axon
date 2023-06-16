@@ -21,7 +21,7 @@
     <parent>
         <groupId>io.axoniq.inspector</groupId>
         <artifactId>inspector-axon-parent</artifactId>
-        <version>0.1.8</version>
+        <version>0.2.0-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
