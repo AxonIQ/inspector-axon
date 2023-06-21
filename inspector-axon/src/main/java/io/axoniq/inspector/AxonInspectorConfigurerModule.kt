@@ -106,6 +106,7 @@ class AxonInspectorConfigurerModule(
                 HandlerMetricsRegistry(
                     it.getComponent(RSocketInspectorClient::class.java),
                     executor,
+                    properties.applicationName,
                 )
             }
             .registerComponent(SpanFactory::class.java) { InspectorSpanFactory() }

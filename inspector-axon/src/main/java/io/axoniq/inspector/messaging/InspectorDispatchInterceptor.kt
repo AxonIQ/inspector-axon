@@ -23,17 +23,14 @@ import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
 import java.util.function.BiFunction
 
 class InspectorDispatchInterceptor(
-    private val registry: HandlerMetricsRegistry,
+        private val registry: HandlerMetricsRegistry,
 ) : MessageDispatchInterceptor<Message<*>> {
 
     override fun handle(messages: MutableList<out Message<*>>): BiFunction<Int, Message<*>, Message<*>> {
         return BiFunction { _, message ->
             if (!CurrentUnitOfWork.isStarted()) {
-                registry.registerMessageDispatchedDuringHandling(
-                    DispatcherStatisticIdentifier(
-                        null,
+                registry.registerMessageDispatchedWithoutHandling(
                         message.toInformation()
-                    )
                 )
             } else {
                 InspectorSpanFactory.onTopLevelSpanIfActive {

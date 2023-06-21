@@ -17,6 +17,7 @@
 package io.axoniq.inspector.api.metrics
 
 enum class HandlerType {
+    Origin,
     EventProcessor,
     Aggregate,
     Message,
