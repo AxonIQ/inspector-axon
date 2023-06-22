@@ -16,7 +16,11 @@
 
 package io.axoniq.inspector.messaging
 
+import io.axoniq.inspector.api.InspectorMessageOrigin
 import io.axoniq.inspector.api.metrics.DispatcherStatisticIdentifier
+import io.axoniq.inspector.api.metrics.HandlerStatisticsMetricIdentifier
+import io.axoniq.inspector.api.metrics.HandlerType
+import io.axoniq.inspector.api.metrics.MessageIdentifier
 import org.axonframework.messaging.Message
 import org.axonframework.messaging.MessageDispatchInterceptor
 import org.axonframework.messaging.unitofwork.CurrentUnitOfWork
@@ -24,14 +28,18 @@ import java.util.function.BiFunction
 
 class InspectorDispatchInterceptor(
         private val registry: HandlerMetricsRegistry,
+        private val componentName: String,
 ) : MessageDispatchInterceptor<Message<*>> {
 
     override fun handle(messages: MutableList<out Message<*>>): BiFunction<Int, Message<*>, Message<*>> {
         return BiFunction { _, message ->
             if (!CurrentUnitOfWork.isStarted()) {
-                registry.registerMessageDispatchedWithoutHandling(
-                        message.toInformation()
-                )
+                // Determine the origin of the handler
+                if (message.payload.javaClass.isAnnotationPresent(InspectorMessageOrigin::class.java)) {
+                    reportMessageDispatchedFromOrigin(message.payload.javaClass.getAnnotation(InspectorMessageOrigin::class.java).name, message)
+                } else {
+                    reportMessageDispatchedFromOrigin(componentName, message)
+                }
             } else {
                 InspectorSpanFactory.onTopLevelSpanIfActive {
                     it.registerMessageDispatched(message.toInformation())
@@ -39,5 +47,14 @@ class InspectorDispatchInterceptor(
             }
             message
         }
+    }
+
+    private fun reportMessageDispatchedFromOrigin(originName: String, message: Message<*>) {
+        registry.registerMessageDispatchedDuringHandling(
+                DispatcherStatisticIdentifier(HandlerStatisticsMetricIdentifier(
+                        type = HandlerType.Origin,
+                        component = originName,
+                        message = MessageIdentifier("Dispatcher", originName)), message.toInformation())
+        )
     }
 }

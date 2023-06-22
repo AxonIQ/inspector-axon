@@ -89,7 +89,7 @@ class HandlerMetricsRegistry(
                                             .toMap()
                             )
                             )
-                        } + HandlerStatisticsWithIdentifier(noHanlerIdentifier, HandlerStatistics(0.0, 0.0, null, emptyMap())),
+                        } + dispatches.filter { it.key.handlerInformation?.type == HandlerType.Origin }.map { HandlerStatisticsWithIdentifier(it.key.handlerInformation!!, HandlerStatistics(0.0, 0.0, null, emptyMap())) },
                 dispatchers = dispatches.entries
                         .map {
                             DispatcherStatisticsWithIdentifier(
