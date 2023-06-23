@@ -40,30 +40,31 @@ class AxonInspectorAutoConfiguration {
     @Bean
     @ConditionalOnProperty("axon.inspector.credentials", matchIfMissing = false)
     fun inspectorAxonConfigurerModule(
-        properties: InspectorProperties,
-        applicationContext: ApplicationContext
+            properties: InspectorProperties,
+            applicationContext: ApplicationContext
     ): AxonInspectorConfigurerModule {
         val credentials =
-            properties.credentials ?: throw IllegalStateException("No known credentials for Inspector Axon!")
+                properties.credentials ?: throw IllegalStateException("No known credentials for Inspector Axon!")
         val applicationName = properties.applicationName ?: applicationContext.id!!
         val (workspaceId, environmentId, accessToken) = credentials.split(":")
         logger.info(
-            "Setting up Inspector Axon work Workspace {} and Environment {}. This application will be registered as {}",
-            workspaceId,
-            environmentId,
-            applicationName
+                "Setting up Inspector Axon work Workspace {} and Environment {}. This application will be registered as {}",
+                workspaceId,
+                environmentId,
+                applicationName
         )
         return AxonInspectorConfigurerModule(
-            AxonInspectorProperties(
-                host = properties.host,
-                port = properties.port,
-                initialDelay = properties.initialDelay,
-                secure = properties.secure,
-                workspaceId = workspaceId,
-                environmentId = environmentId,
-                accessToken = accessToken,
-                applicationName = applicationName
-            )
+                properties = AxonInspectorProperties(
+                        host = properties.host,
+                        port = properties.port,
+                        initialDelay = properties.initialDelay,
+                        secure = properties.secure,
+                        workspaceId = workspaceId,
+                        environmentId = environmentId,
+                        accessToken = accessToken,
+                        applicationName = applicationName
+                ),
+                configureSpanFactory = false
         )
     }
 
@@ -85,10 +86,10 @@ class AxonInspectorAutoConfiguration {
                 return spanFactory
             }
             return MultiSpanFactory(
-                listOf(
-                    spanFactory,
-                    bean
-                )
+                    listOf(
+                            spanFactory,
+                            bean
+                    )
             )
         }
     }

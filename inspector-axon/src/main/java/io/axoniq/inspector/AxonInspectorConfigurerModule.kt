@@ -41,7 +41,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 
 class AxonInspectorConfigurerModule(
-        private val properties: AxonInspectorProperties
+        private val properties: AxonInspectorProperties,
+        private val configureSpanFactory: Boolean = true
 ) : ConfigurerModule {
 
     override fun configureModule(configurer: Configurer) {
@@ -109,7 +110,6 @@ class AxonInspectorConfigurerModule(
                             properties.applicationName,
                     )
                 }
-                .registerComponent(SpanFactory::class.java) { InspectorSpanFactory() }
                 .eventProcessing()
                 .registerDefaultHandlerInterceptor { config, name ->
                     InspectorHandlerProcessorInterceptor(
@@ -117,6 +117,9 @@ class AxonInspectorConfigurerModule(
                             name,
                     )
                 }
+        if(configureSpanFactory) {
+            configurer.registerComponent(SpanFactory::class.java) { InspectorSpanFactory() }
+        }
 
         configurer.onInitialize {
             it.getComponent(ServerProcessorReporter::class.java)
