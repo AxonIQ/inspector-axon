@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - inspector-*.*.x
+      - feature/0.2.0-SNAPSHOT
 
 jobs:
   build:
