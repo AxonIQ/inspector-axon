@@ -41,83 +41,87 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 
 class AxonInspectorConfigurerModule(
-        private val properties: AxonInspectorProperties,
-        private val configureSpanFactory: Boolean = true
+    private val properties: AxonInspectorProperties,
+    private val configureSpanFactory: Boolean = true
 ) : ConfigurerModule {
 
     override fun configureModule(configurer: Configurer) {
         val executor: ScheduledExecutorService = Executors.newScheduledThreadPool(properties.threadPoolSize);
         configurer
-                .registerComponent(ProcessorMetricsRegistry::class.java) {
-                    ProcessorMetricsRegistry()
-                }
-                .registerComponent(ProcessorReportCreator::class.java) {
-                    ProcessorReportCreator(
-                            it.eventProcessingConfiguration(),
-                            it.getComponent(ProcessorMetricsRegistry::class.java)
-                    )
-                }
-                .registerComponent(SetupPayloadCreator::class.java) {
-                    SetupPayloadCreator(it)
-                }
-                .registerComponent(EventProcessorManager::class.java) {
-                    EventProcessorManager(it.eventProcessingConfiguration())
-                }
+            .registerComponent(ProcessorMetricsRegistry::class.java) {
+                ProcessorMetricsRegistry()
+            }
+            .registerComponent(ProcessorReportCreator::class.java) {
+                ProcessorReportCreator(
+                    it.eventProcessingConfiguration(),
+                    it.getComponent(ProcessorMetricsRegistry::class.java)
+                )
+            }
+            .registerComponent(SetupPayloadCreator::class.java) {
+                SetupPayloadCreator(it)
+            }
+            .registerComponent(EventProcessorManager::class.java) {
+                EventProcessorManager(it.eventProcessingConfiguration())
+            }
+            .registerComponent(RSocketPayloadEncodingStrategy::class.java) {
+                CborEncodingStrategy()
+            }
+            .registerComponent(RSocketHandlerRegistrar::class.java) {
+                RSocketHandlerRegistrar(
+                    it.getComponent(RSocketPayloadEncodingStrategy::class.java)
+                )
+            }
+            .registerComponent(RSocketProcessorResponder::class.java) {
+                RSocketProcessorResponder(
+                    it.getComponent(EventProcessorManager::class.java),
+                    it.getComponent(ProcessorReportCreator::class.java),
+                    it.getComponent(RSocketHandlerRegistrar::class.java),
+                )
+            }
+            .registerComponent(RSocketInspectorClient::class.java) {
+                RSocketInspectorClient(
+                    properties,
+                    it.getComponent(SetupPayloadCreator::class.java),
+                    it.getComponent(RSocketHandlerRegistrar::class.java),
+                    it.getComponent(RSocketPayloadEncodingStrategy::class.java),
+                    executor,
+                )
+            }
+            .registerComponent(ServerProcessorReporter::class.java) {
+                ServerProcessorReporter(
+                    it.getComponent(RSocketInspectorClient::class.java),
+                    it.getComponent(ProcessorReportCreator::class.java),
+                    executor,
+                )
+            }
+            .registerComponent(HandlerMetricsRegistry::class.java) {
+                HandlerMetricsRegistry(
+                    it.getComponent(RSocketInspectorClient::class.java),
+                    executor,
+                    properties.applicationName,
+                )
+            }
+            .eventProcessing()
+            .registerDefaultHandlerInterceptor { config, name ->
+                InspectorHandlerProcessorInterceptor(
+                    config.getComponent(ProcessorMetricsRegistry::class.java),
+                    name,
+                )
+            }
+
+        if (properties.dlqEnabled) {
+            configurer
                 .registerComponent(DeadLetterManager::class.java) {
                     DeadLetterManager(it.eventProcessingConfiguration(), it.eventSerializer())
                 }
-                .registerComponent(RSocketPayloadEncodingStrategy::class.java) {
-                    CborEncodingStrategy()
-                }
-                .registerComponent(RSocketHandlerRegistrar::class.java) {
-                    RSocketHandlerRegistrar(
-                            it.getComponent(RSocketPayloadEncodingStrategy::class.java)
-                    )
-                }
-                .registerComponent(RSocketProcessorResponder::class.java) {
-                    RSocketProcessorResponder(
-                            it.getComponent(EventProcessorManager::class.java),
-                            it.getComponent(ProcessorReportCreator::class.java),
-                            it.getComponent(RSocketHandlerRegistrar::class.java),
-                    )
-                }
                 .registerComponent(RSocketDlqResponder::class.java) {
                     RSocketDlqResponder(
-                            it.getComponent(DeadLetterManager::class.java),
-                            it.getComponent(RSocketHandlerRegistrar::class.java),
+                        it.getComponent(DeadLetterManager::class.java),
+                        it.getComponent(RSocketHandlerRegistrar::class.java),
                     )
                 }
-                .registerComponent(RSocketInspectorClient::class.java) {
-                    RSocketInspectorClient(
-                            properties,
-                            it.getComponent(SetupPayloadCreator::class.java),
-                            it.getComponent(RSocketHandlerRegistrar::class.java),
-                            it.getComponent(RSocketPayloadEncodingStrategy::class.java),
-                            executor,
-                    )
-                }
-                .registerComponent(ServerProcessorReporter::class.java) {
-                    ServerProcessorReporter(
-                            it.getComponent(RSocketInspectorClient::class.java),
-                            it.getComponent(ProcessorReportCreator::class.java),
-                            executor,
-                    )
-                }
-                .registerComponent(HandlerMetricsRegistry::class.java) {
-                    HandlerMetricsRegistry(
-                            it.getComponent(RSocketInspectorClient::class.java),
-                            executor,
-                            properties.applicationName,
-                    )
-                }
-                .eventProcessing()
-                .registerDefaultHandlerInterceptor { config, name ->
-                    InspectorHandlerProcessorInterceptor(
-                            config.getComponent(ProcessorMetricsRegistry::class.java),
-                            name,
-                    )
-                }
-        if(configureSpanFactory) {
+        }
+        if (configureSpanFactory) {
             configurer.registerComponent(SpanFactory::class.java) { InspectorSpanFactory() }
         }
 
@@ -132,7 +136,7 @@ class AxonInspectorConfigurerModule(
                     val repo = ac.repository().unwrapPossiblyDecoratedClass(Repository::class.java)
                     if (repo is EventSourcingRepository) {
                         val field =
-                                ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
+                            ReflectionUtils.fieldsOf(repo::class.java).firstOrNull { f -> f.name == "eventStore" }
                         if (field != null) {
                             val current = ReflectionUtils.getFieldValue<EventStore>(field, repo)
                             if (current !is InspectorWrappedEventStore) {
@@ -148,8 +152,8 @@ class AxonInspectorConfigurerModule(
             val config = configurer.buildConfiguration()
 
             val interceptor = InspectorDispatchInterceptor(
-                    config.getComponent(HandlerMetricsRegistry::class.java),
-                    properties.applicationName
+                config.getComponent(HandlerMetricsRegistry::class.java),
+                properties.applicationName
             )
             config.eventBus().registerDispatchInterceptor(interceptor)
             config.commandBus().registerDispatchInterceptor(interceptor)
