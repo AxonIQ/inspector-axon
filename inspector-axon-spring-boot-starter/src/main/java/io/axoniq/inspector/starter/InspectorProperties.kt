@@ -27,5 +27,5 @@ class InspectorProperties {
     var credentials: String? = null
     var initialDelay: Long = 0
     var applicationName: String? = null
-    var dlqEnabled: Boolean = false
+    var dlqEnabled: Boolean = true
 }
