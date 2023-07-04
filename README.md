@@ -34,6 +34,7 @@ The following data will be sent to the servers of AxonIQ:
   - Occurs every 2 seconds
 - Handler statistics
   - Message names and names of handling components
+  - Message payload, or ids, are not sent to AxonIQ servers
   - Statistics such as latency, throughput and error rates
   - Correlation between messages and different handlers
   - Occurs every 20 seconds
@@ -41,3 +42,6 @@ The following data will be sent to the servers of AxonIQ:
   - Contains message name, error information and event payload
   - Occurs upon user request
   - Can be disabled by 
+
+If you are concerned about the message data being sent to AxonIQ, please contact us at,
+disabling the DLQ functionality will prevent that in all cases.
