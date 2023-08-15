@@ -1,10 +1,10 @@
 <!--
-Thanks for taking the time to draft up an issue for Inspector Axon Connector!
+Thanks for taking the time to draft up an issue for Inspector Axon!
 Prior to starting off, please read the following:
 
 ## Usage Questions
 
-If you are having difficulty using Inspector Axon Connector,
+If you are having difficulty using Inspector Axon,
  please consider checking Axon's Reference Guide first if it answers your question: https://docs.axoniq.io
  
 When the Reference Guide does not cover the specific question you have, take the following into account:
@@ -22,7 +22,7 @@ After that's done, your issue will typically fall under one of the following opt
 3. It's an `enhancement` request
 
 It is recommended that for either of the three you use one of the prepared issue template.
-You can find all three of them [here](https://github.com/AxonIQ/inspector-connectors/issues/new/choose). 
+You can find all three of them [here](https://github.com/AxonIQ/inspector-axon/issues/new/choose). 
 
 ## None of the above fit!
 

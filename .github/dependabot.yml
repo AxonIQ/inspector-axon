@@ -1,29 +1,38 @@
 version: 2
+
 updates:
-- package-ecosystem: github-actions
-  directory: "/"
-  schedule:
-    interval: daily
-  open-pull-requests-limit: 5
-  labels:
-    - "Type: Dependency Upgrade"
-    - "Priority 1: Must"
-    - "Status: In Progress"
-  milestone: 8
-  reviewers:
-    - "gklijs"
-    - "Morlack" # Main
-    - "smcvb"
-- package-ecosystem: maven
-  directory: "/"
-  schedule:
-    interval: daily
-  open-pull-requests-limit: 5
-  labels:
-    - "Type: Dependency Upgrade"
-    - "Priority 1: Must"
-  milestone: 8
-  reviewers:
-    - "gklijs"
-    - "Morlack" # Main
-    - "smcvb"
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+    labels:
+      - "Type: Dependency Upgrade"
+      - "Priority 1: Must"
+      - "Status: In Progress"
+    milestone: 1
+    reviewers:
+      - "gklijs"
+      - "CodeDrivenMitch"
+      - "sandjelkovic"
+      - "smcvb"
+      - "stefanmirkovic"
+      - "talisman027"
+
+  - package-ecosystem: maven
+    directory: "/"
+    schedule:
+      interval: daily
+    open-pull-requests-limit: 5
+    labels:
+      - "Type: Dependency Upgrade"
+      - "Priority 1: Must"
+      - "Status: In Progress"
+    milestone: 1
+    reviewers:
+      - "gklijs"
+      - "CodeDrivenMitch"
+      - "sandjelkovic"
+      - "smcvb"
+      - "stefanmirkovic"
+      - "talisman027"
