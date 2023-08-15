@@ -9,8 +9,6 @@ updates:
     labels:
       - "Type: Dependency Upgrade"
       - "Priority 1: Must"
-      - "Status: In Progress"
-    milestone: 1
     reviewers:
       - "gklijs"
       - "CodeDrivenMitch"
@@ -27,8 +25,6 @@ updates:
     labels:
       - "Type: Dependency Upgrade"
       - "Priority 1: Must"
-      - "Status: In Progress"
-    milestone: 1
     reviewers:
       - "gklijs"
       - "CodeDrivenMitch"
