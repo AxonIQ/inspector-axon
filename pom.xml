@@ -56,7 +56,7 @@
 
         <axon.version>4.6.6</axon.version>
 
-        <projectreactor.version>3.5.6</projectreactor.version>
+        <projectreactor.version>3.5.9</projectreactor.version>
         <spring-boot.version>2.7.12</spring-boot.version>
         <dokka.version>1.8.10</dokka.version>
     </properties>
