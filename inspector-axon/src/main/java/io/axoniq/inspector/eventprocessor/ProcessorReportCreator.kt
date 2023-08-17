@@ -53,6 +53,14 @@ class ProcessorReportCreator(
             }
     )
 
+    fun createSegmentOverview(processorName: String): SegmentOverview {
+        val tokenStore = processingConfig.tokenStore(processorName)
+        return SegmentOverview(
+            tokenStore.fetchAvailableSegments(processorName)
+                .map { SegmentDetails(it.segmentId, it.mergeableSegmentId(), it.mask) }
+        )
+    }
+
     private fun StreamingEventProcessor.toType(): ProcessorMode {
         return when (this) {
             is TrackingEventProcessor -> ProcessorMode.TRACKING
@@ -64,6 +72,7 @@ class ProcessorReportCreator(
     private fun EventTrackerStatus.toStatus(name: String) = SegmentStatus(
         segment = this.segment.segmentId,
         mergeableSegment = this.segment.mergeableSegmentId(),
+        mask = this.segment.mask,
         oneOf = this.segment.mask + 1,
         caughtUp = this.isCaughtUp,
         error = this.isErrorState,

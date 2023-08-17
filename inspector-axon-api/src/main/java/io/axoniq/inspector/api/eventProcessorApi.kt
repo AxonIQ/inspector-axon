@@ -52,6 +52,7 @@ data class ProcessingGroupStatus(
 data class SegmentStatus(
     val segment: Int,
     val mergeableSegment: Int,
+    val mask: Int,
     val oneOf: Int,
     val caughtUp: Boolean,
     val error: Boolean,
@@ -74,4 +75,15 @@ data class ResetDecision(
     val processorName: String,
     val decision: ResetDecisions,
     val from: Instant? = null
+)
+
+data class SegmentOverview(
+    val segments: List<SegmentDetails>
+)
+
+data class SegmentDetails(
+
+    val segment: Int,
+    val mergeableSegment: Int,
+    val mask: Int,
 )
