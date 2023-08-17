@@ -51,7 +51,7 @@ class AxonInspectorAutoConfiguration {
         val applicationName = properties.applicationName ?: applicationContext.id!!
         val (environmentId, accessToken) = credentials.split(":")
         logger.info(
-            "Setting up Inspector Axon work Environment {}. This application will be registered as {}",
+            "Setting up Inspector Axon namespace {}. This application will be registered as {}",
             environmentId,
             applicationName
         )
