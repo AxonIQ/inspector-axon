@@ -16,10 +16,7 @@
 
 package io.axoniq.inspector.eventprocessor
 
-import io.axoniq.inspector.api.ProcessorSegmentId
-import io.axoniq.inspector.api.ProcessorStatusReport
-import io.axoniq.inspector.api.ResetDecision
-import io.axoniq.inspector.api.Routes
+import io.axoniq.inspector.api.*
 import io.axoniq.inspector.client.RSocketHandlerRegistrar
 import org.axonframework.lifecycle.Lifecycle
 import org.axonframework.lifecycle.Phase
@@ -40,6 +37,7 @@ open class RSocketProcessorResponder(
         registrar.registerHandlerWithPayload(Routes.EventProcessor.START, String::class.java, this::handleStart)
         registrar.registerHandlerWithPayload(Routes.EventProcessor.STOP, String::class.java, this::handleStop)
         registrar.registerHandlerWithoutPayload(Routes.EventProcessor.STATUS, this::handleStatusQuery)
+        registrar.registerHandlerWithPayload(Routes.EventProcessor.SEGMENTS, String::class.java, this::handleSegmentQuery)
         registrar.registerHandlerWithPayload(
             Routes.EventProcessor.RELEASE,
             ProcessorSegmentId::class.java,
@@ -75,6 +73,11 @@ open class RSocketProcessorResponder(
     private fun handleStatusQuery(): ProcessorStatusReport {
         logger.info("Handling Inspector Axon STATUS command")
         return processorReportCreator.createReport()
+    }
+
+    private fun handleSegmentQuery(processor: String): SegmentOverview {
+        logger.info("Handling Inspector Axon SEGMENTS command")
+        return processorReportCreator.createSegmentOverview(processor)
     }
 
     fun handleRelease(processorSegmentId: ProcessorSegmentId) {

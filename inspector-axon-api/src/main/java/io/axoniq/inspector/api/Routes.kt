@@ -30,6 +30,7 @@ object Routes {
         const val RESET = "processor-command-reset"
 
         const val STATUS = "event-processor-status"
+        const val SEGMENTS = "event-processor-segments"
     }
 
     object ProcessingGroup {
