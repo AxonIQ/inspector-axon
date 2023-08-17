@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
-package io.axoniq.inspector.api.metrics
+package io.axoniq.inspector.api
 
-enum class HandlerType {
-    Origin,
-    EventProcessor,
-    Aggregate,
-    Message,
+class ComponentPayload<T>(val component: String, val payload: T?) {
+    companion object {
+        @JvmStatic
+        fun <T> withComponent(component: String, payload: T): ComponentPayload<T> {
+            return ComponentPayload(component, payload)
+        }
+
+        fun <T> Any.withComponent(component: String, payload: T): ComponentPayload<T> {
+            return ComponentPayload(component, payload)
+        }
+    }
 }

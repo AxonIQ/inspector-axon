@@ -42,9 +42,12 @@ class AxonInspectorAutoConfiguration {
     fun inspectorAxonConfigurerModule(
         properties: InspectorProperties,
         applicationContext: ApplicationContext
-    ): AxonInspectorConfigurerModule {
-        val credentials =
-            properties.credentials ?: throw IllegalStateException("No known credentials for Inspector Axon!")
+    ): ConfigurerModule {
+        val credentials = properties.credentials
+        if (credentials == null) {
+            logger.warn("No credentials were provided for the connection to Inspector Axon. Please provide them as instructed through the 'axon.inspector.credentials' property.")
+            return ConfigurerModule {  }
+        }
         val applicationName = properties.applicationName ?: applicationContext.id!!
         val (environmentId, accessToken) = credentials.split(":")
         logger.info(
@@ -53,22 +56,18 @@ class AxonInspectorAutoConfiguration {
             applicationName
         )
         return AxonInspectorConfigurerModule(
-            AxonInspectorProperties(
+            properties = AxonInspectorProperties(
                 host = properties.host,
                 port = properties.port,
                 initialDelay = properties.initialDelay,
                 secure = properties.secure,
                 environmentId = environmentId,
                 accessToken = accessToken,
-                applicationName = applicationName
-            )
+                applicationName = applicationName,
+                dlqEnabled = properties.dlqEnabled
+            ),
+            configureSpanFactory = false
         )
-    }
-
-    @Bean
-    @ConditionalOnProperty("axon.inspector.credentials", havingValue = "", matchIfMissing = true)
-    fun missingInspectorAxonCredentialsConfigurerModule() = ConfigurerModule {
-        logger.warn("No credentials were provided for the connection to Inspector Axon. Please provide them as instructed through the 'axon.inspector.credentials' property.")
     }
 
     @Bean

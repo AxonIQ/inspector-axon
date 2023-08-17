@@ -25,4 +25,5 @@ class AxonInspectorProperties(
     val secure: Boolean = true,
     val threadPoolSize: Int = 1,
     val initialDelay: Long = 0,
+    val dlqEnabled: Boolean = true,
 )

@@ -41,7 +41,8 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 
 class AxonInspectorConfigurerModule(
-    private val properties: AxonInspectorProperties
+    private val properties: AxonInspectorProperties,
+    private val configureSpanFactory: Boolean = true
 ) : ConfigurerModule {
 
     override fun configureModule(configurer: Configurer) {
@@ -62,9 +63,6 @@ class AxonInspectorConfigurerModule(
             .registerComponent(EventProcessorManager::class.java) {
                 EventProcessorManager(it.eventProcessingConfiguration())
             }
-            .registerComponent(DeadLetterManager::class.java) {
-                DeadLetterManager(it.eventProcessingConfiguration(), it.eventSerializer())
-            }
             .registerComponent(RSocketPayloadEncodingStrategy::class.java) {
                 CborEncodingStrategy()
             }
@@ -77,12 +75,6 @@ class AxonInspectorConfigurerModule(
                 RSocketProcessorResponder(
                     it.getComponent(EventProcessorManager::class.java),
                     it.getComponent(ProcessorReportCreator::class.java),
-                    it.getComponent(RSocketHandlerRegistrar::class.java),
-                )
-            }
-            .registerComponent(RSocketDlqResponder::class.java) {
-                RSocketDlqResponder(
-                    it.getComponent(DeadLetterManager::class.java),
                     it.getComponent(RSocketHandlerRegistrar::class.java),
                 )
             }
@@ -106,9 +98,9 @@ class AxonInspectorConfigurerModule(
                 HandlerMetricsRegistry(
                     it.getComponent(RSocketInspectorClient::class.java),
                     executor,
+                    properties.applicationName,
                 )
             }
-            .registerComponent(SpanFactory::class.java) { InspectorSpanFactory() }
             .eventProcessing()
             .registerDefaultHandlerInterceptor { config, name ->
                 InspectorHandlerProcessorInterceptor(
@@ -116,6 +108,22 @@ class AxonInspectorConfigurerModule(
                     name,
                 )
             }
+
+        if (properties.dlqEnabled) {
+            configurer
+                .registerComponent(DeadLetterManager::class.java) {
+                    DeadLetterManager(it.eventProcessingConfiguration(), it.eventSerializer())
+                }
+                .registerComponent(RSocketDlqResponder::class.java) {
+                    RSocketDlqResponder(
+                        it.getComponent(DeadLetterManager::class.java),
+                        it.getComponent(RSocketHandlerRegistrar::class.java),
+                    )
+                }
+        }
+        if (configureSpanFactory) {
+            configurer.registerComponent(SpanFactory::class.java) { InspectorSpanFactory() }
+        }
 
         configurer.onInitialize {
             it.getComponent(ServerProcessorReporter::class.java)
@@ -145,6 +153,7 @@ class AxonInspectorConfigurerModule(
 
             val interceptor = InspectorDispatchInterceptor(
                 config.getComponent(HandlerMetricsRegistry::class.java),
+                properties.applicationName
             )
             config.eventBus().registerDispatchInterceptor(interceptor)
             config.commandBus().registerDispatchInterceptor(interceptor)

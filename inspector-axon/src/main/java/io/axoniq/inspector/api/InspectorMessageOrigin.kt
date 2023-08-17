@@ -14,11 +14,11 @@
  * limitations under the License.
  */
 
-package io.axoniq.inspector.api.metrics
+package io.axoniq.inspector.api
 
-enum class HandlerType {
-    Origin,
-    EventProcessor,
-    Aggregate,
-    Message,
-}
+@Target(AnnotationTarget.CLASS)
+@Retention(AnnotationRetention.RUNTIME)
+@MustBeDocumented
+annotation class InspectorMessageOrigin(
+        val name: String,
+)
