@@ -30,6 +30,7 @@ import io.axoniq.inspector.messaging.InspectorDispatchInterceptor
 import io.axoniq.inspector.messaging.InspectorSpanFactory
 import io.axoniq.inspector.messaging.InspectorWrappedEventStore
 import org.axonframework.common.ReflectionUtils
+import org.axonframework.common.transaction.TransactionManager
 import org.axonframework.config.AggregateConfiguration
 import org.axonframework.config.Configurer
 import org.axonframework.config.ConfigurerModule
@@ -61,7 +62,10 @@ class AxonInspectorConfigurerModule(
                 SetupPayloadCreator(it)
             }
             .registerComponent(EventProcessorManager::class.java) {
-                EventProcessorManager(it.eventProcessingConfiguration())
+                EventProcessorManager(
+                    it.eventProcessingConfiguration(),
+                    it.getComponent(TransactionManager::class.java)
+                )
             }
             .registerComponent(RSocketPayloadEncodingStrategy::class.java) {
                 CborEncodingStrategy()
