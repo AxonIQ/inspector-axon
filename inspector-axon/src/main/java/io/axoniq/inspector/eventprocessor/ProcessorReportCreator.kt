@@ -20,6 +20,7 @@ import io.axoniq.inspector.api.*
 import io.axoniq.inspector.eventprocessor.metrics.ProcessorMetricsRegistry
 import org.axonframework.config.EventProcessingConfiguration
 import org.axonframework.eventhandling.EventTrackerStatus
+import org.axonframework.eventhandling.Segment
 import org.axonframework.eventhandling.StreamingEventProcessor
 import org.axonframework.eventhandling.TrackingEventProcessor
 import org.axonframework.eventhandling.pooled.PooledStreamingEventProcessor
@@ -55,8 +56,9 @@ class ProcessorReportCreator(
 
     fun createSegmentOverview(processorName: String): SegmentOverview {
         val tokenStore = processingConfig.tokenStore(processorName)
+        val segments = tokenStore.fetchSegments(processorName)
         return SegmentOverview(
-            tokenStore.fetchAvailableSegments(processorName)
+            segments.map { Segment.computeSegment(it, *segments) }
                 .map { SegmentDetails(it.segmentId, it.mergeableSegmentId(), it.mask) }
         )
     }

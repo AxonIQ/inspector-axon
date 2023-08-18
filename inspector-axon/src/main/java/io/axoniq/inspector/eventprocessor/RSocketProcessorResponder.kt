@@ -58,6 +58,11 @@ open class RSocketProcessorResponder(
             ResetDecision::class.java,
             this::handleReset
         )
+        registrar.registerHandlerWithPayload(
+            Routes.EventProcessor.CLAIM,
+            ProcessorSegmentId::class.java,
+            this::handleClaim
+        )
     }
 
     private fun handleStart(processorName: String) {
@@ -112,5 +117,14 @@ open class RSocketProcessorResponder(
     private fun handleReset(resetDecision: ResetDecision) {
         logger.info("Handling Inspector Axon RESET command for processor [{}]", resetDecision.processorName)
         eventProcessorManager.resetTokens(resetDecision)
+    }
+
+    fun handleClaim(processorSegmentId: ProcessorSegmentId): Boolean {
+        logger.info(
+            "Handling Inspector Axon CLAIM command for processor [{}] and segment [{}]",
+            processorSegmentId.processorName,
+            processorSegmentId.segmentId
+        )
+        return eventProcessorManager.claimSegment(processorSegmentId.processorName, processorSegmentId.segmentId)
     }
 }

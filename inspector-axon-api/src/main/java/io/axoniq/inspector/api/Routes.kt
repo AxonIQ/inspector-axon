@@ -31,6 +31,7 @@ object Routes {
 
         const val STATUS = "event-processor-status"
         const val SEGMENTS = "event-processor-segments"
+        const val CLAIM = "event-processor-claim"
     }
 
     object ProcessingGroup {
