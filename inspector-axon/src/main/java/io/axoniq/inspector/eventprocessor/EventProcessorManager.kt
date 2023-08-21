@@ -28,8 +28,10 @@ import org.slf4j.LoggerFactory
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
-class EventProcessorManager(private val eventProcessingConfig: EventProcessingConfiguration,
-    private val transactionManager: TransactionManager) {
+class EventProcessorManager(
+    private val eventProcessingConfig: EventProcessingConfiguration,
+    private val transactionManager: TransactionManager
+) {
     private val logger = LoggerFactory.getLogger(this::class.java)
 
     fun start(processorName: String) {
@@ -44,34 +46,37 @@ class EventProcessorManager(private val eventProcessingConfig: EventProcessingCo
         eventProcessor(processorName).releaseSegment(segmentId)
     }
 
+
+    fun splitSegment(processorName: String, segmentId: Int) =
+        eventProcessor(processorName)
+            .splitSegment(segmentId)
+            .get(5, TimeUnit.SECONDS)
+
+    fun mergeSegment(processorName: String, segmentId: Int) =
+        eventProcessor(processorName)
+            .mergeSegment(segmentId)
+            .get(5, TimeUnit.SECONDS)
+
+    fun resetTokens(resetDecision: ResetDecision) =
+        eventProcessor(resetDecision.processorName)
+            .resetTokens { messageSource ->
+                when (resetDecision.decision) {
+                    ResetDecisions.HEAD -> messageSource.createHeadToken()
+                    ResetDecisions.TAIL -> messageSource.createTailToken()
+                    ResetDecisions.FROM -> messageSource.createTokenAt(resetDecision.from!!)
+                }
+            }
+
     fun claimSegment(processorName: String, segmentId: Int): Boolean {
         val processor = eventProcessor(processorName)
+        transactionManager.executeInTransaction {
+            eventProcessingConfig.tokenStore(processorName).fetchToken(processorName, segmentId)
+        }
         if (processor is TrackingEventProcessor) {
-            logger.info("You are load-balancing TrackingEventProcessor. This is very ineffective. Consider using PooledStreamingEventProcessor instead.")
+            logger.info("You are load-balancing TrackingEventProcessor. This is very ineffective due to the long waits. Consider using PooledStreamingEventProcessor instead.")
         } else if (processor is PooledStreamingEventProcessor) {
             try {
-                val coordinatorField = processor::class.java.declaredFields.firstOrNull { it.name == "coordinator" }
-                    ?: throw IllegalStateException("Could not find Coordinator field!")
-                val coordinator = ReflectionUtils.getFieldValue<Any>(coordinatorField, processor)
-                val coordinationTaskField =
-                    coordinator::class.java.declaredFields.firstOrNull { it.name == "coordinationTask" }
-                        ?: throw IllegalStateException("Could not find CoordinationTask field!")
-                val coordinationTaskAtomicReference = ReflectionUtils
-                    .getFieldValue<AtomicReference<*>>(
-                        coordinationTaskField,
-                        coordinator
-                    )
-                val coordinationTask = coordinationTaskAtomicReference.get()
-                val unclaimedSegmentValidationThresholdField =
-                    coordinationTask::class.java.declaredFields.firstOrNull { it.name == "unclaimedSegmentValidationThreshold" }
-                        ?: throw IllegalStateException("Could not find unclaimedSegmentValidationThreshold field!")
-                ReflectionUtils.setFieldValue(unclaimedSegmentValidationThresholdField, coordinationTask, 0L)
-
-                val taskMethod = coordinationTask::class.java.declaredMethods.firstOrNull { it.name == "scheduleImmediateCoordinationTask" }
-                    ?: throw IllegalStateException("Could not find scheduleImmediateCoordinationTask method!")
-                ReflectionUtils.ensureAccessible(taskMethod)
-                taskMethod.invoke(coordinationTask)
-
+                triggerImmediateCoordinationTaskWithTokenClaim(processor)
             } catch (e: Exception) {
                 logger.warn("Was unable to wait for segment CLAIM command due to internal error", e)
                 return false
@@ -95,28 +100,37 @@ class EventProcessorManager(private val eventProcessingConfig: EventProcessingCo
         return false
     }
 
-    fun splitSegment(processorName: String, segmentId: Int) =
-        eventProcessor(processorName)
-            .splitSegment(segmentId)
-            .get(5, TimeUnit.SECONDS)
+    /**
+     * This is a hack to trigger the coordination task to claim a token.
+     * It will, using reflection, set fields of the CoordinationTask to 0 and then trigger it,
+     * so it immediately checks the TokenStore whether there are tokens to pick up.
+     */
+    private fun triggerImmediateCoordinationTaskWithTokenClaim(processor: StreamingEventProcessor) {
+        val coordinatorField = processor.getField("coordinator")
+        val coordinator = ReflectionUtils.getFieldValue<Any>(coordinatorField, processor)
+        val coordinationTaskField = coordinator.getField("coordinationTask")
+        val coordinationTaskAtomicReference = ReflectionUtils.getFieldValue<AtomicReference<*>>(
+            coordinationTaskField,
+            coordinator
+        )
+        val coordinationTask = coordinationTaskAtomicReference.get()
+        val unclaimedSegmentValidationThresholdField = coordinationTask.getField("unclaimedSegmentValidationThreshold")
+        ReflectionUtils.setFieldValue(unclaimedSegmentValidationThresholdField, coordinationTask, 0L)
 
-    fun mergeSegment(processorName: String, segmentId: Int) =
-        eventProcessor(processorName)
-            .mergeSegment(segmentId)
-            .get(5, TimeUnit.SECONDS)
-
-    fun resetTokens(resetDecision: ResetDecision) =
-        eventProcessor(resetDecision.processorName)
-            .resetTokens { messageSource ->
-                when (resetDecision.decision) {
-                    ResetDecisions.HEAD -> messageSource.createHeadToken()
-                    ResetDecisions.TAIL -> messageSource.createTailToken()
-                    ResetDecisions.FROM -> messageSource.createTokenAt(resetDecision.from!!)
-                }
-            }
-
+        val taskMethod = coordinationTask.getMethod("scheduleImmediateCoordinationTask")
+        ReflectionUtils.ensureAccessible(taskMethod)
+        taskMethod.invoke(coordinationTask)
+    }
 
     private fun eventProcessor(processorName: String): StreamingEventProcessor =
         eventProcessingConfig.eventProcessor(processorName, StreamingEventProcessor::class.java)
             .orElseThrow { IllegalArgumentException("Event Processor [$processorName] not found!") }
+
+    private fun Any.getField(name: String) =
+        this::class.java.declaredFields.firstOrNull { it.name == name }
+            ?: throw IllegalStateException("Could not find field [$name]!")
+
+    private fun Any.getMethod(name: String) =
+        this::class.java.declaredMethods.firstOrNull { it.name == name }
+            ?: throw IllegalStateException("Could not find method [$name]!")
 }
