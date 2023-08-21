@@ -34,6 +34,7 @@ class EventProcessorManager(
     private val transactionManager: TransactionManager
 ) {
     private val logger = LoggerFactory.getLogger(this::class.java)
+    private var lastLogForOldVersion = Instant.EPOCH
 
     fun start(processorName: String) {
         eventProcessor(processorName).start()
@@ -44,7 +45,9 @@ class EventProcessorManager(
     }
 
     fun releaseSegment(processorName: String, segmentId: Int) {
-        eventProcessor(processorName).releaseSegment(segmentId)
+        val eventProcessor = eventProcessor(processorName)
+        eventProcessor.releaseSegment(segmentId)
+        waitForProcessorToHaveUnclaimedSegment(eventProcessor, segmentId)
     }
 
     fun splitSegment(processorName: String, segmentId: Int) =
@@ -74,25 +77,42 @@ class EventProcessorManager(
         }
 
         executeClaimMethodOrFallback(processor, segmentId)
-        return waitForProcessorToHaveClaimedSegment(processor, segmentId, processorName)
+        return waitForProcessorToHaveClaimedSegment(processor, segmentId)
     }
 
     private fun waitForProcessorToHaveClaimedSegment(
         processor: StreamingEventProcessor,
         segmentId: Int,
-        processorName: String
     ): Boolean {
         var loop = 0
         while (loop < 300) {
             Thread.sleep(100)
             if (processor.processingStatus().containsKey(segmentId)) {
-                logger.info("Processor [$processorName] successfully claimed segment [$segmentId] in approx. [${loop * 100}ms].")
+                logger.info("Processor [${processor.name}] successfully claimed segment [$segmentId] in approx. [${loop * 100}ms].")
                 return true
             }
             loop++
         }
 
-        logger.info("Processor [$processorName] failed to claim [$segmentId] in approx. [${loop * 100}ms].")
+        logger.info("Processor [${processor.name}] failed to claim [$segmentId] in approx. [${loop * 100}ms].")
+        return false
+    }
+
+    private fun waitForProcessorToHaveUnclaimedSegment(
+        processor: StreamingEventProcessor,
+        segmentId: Int,
+    ): Boolean {
+        var loop = 0
+        while (loop < 300) {
+            Thread.sleep(100)
+            if (!processor.processingStatus().containsKey(segmentId) || processor.processingStatus().get(segmentId)!!.isErrorState) {
+                logger.info("Processor [${processor.name}] successfully unclaimed segment [$segmentId] in approx. [${loop * 100}ms].")
+                return true
+            }
+            loop++
+        }
+
+        logger.info("Processor [${processor.name}] failed to unclaim [$segmentId] in approx. [${loop * 100}ms].")
         return false
     }
 
@@ -102,14 +122,20 @@ class EventProcessorManager(
             ReflectionUtils.ensureAccessible(claimMethod)
             claimMethod.invoke(processor, segmentId)
         } catch (e: Exception) {
-            logger.info("You processor is being load-balanced and you are using Axon Framework 4.8.x or earlier. Using 4.9.x or later will improve the usability and performance greatly. Read the information in the AxonIQ Console UI.")
             executeFallback(processor, segmentId)
         }
     }
 
     private fun executeFallback(processor: StreamingEventProcessor, segmentId: Int) {
+        logIfTimeExpired {
+            logger.info("You processor is being load-balanced and you are using Axon Framework 4.8.x or earlier. Using 4.9.x or later will improve the usability and performance greatly. Read the information in the AxonIQ Console UI.")
+
+            if (processor is TrackingEventProcessor) {
+                logger.info("Your TrackingEventProcessor ${processor.name} is being load-balanced. This can cause interruptions due to the long waits. Read the information in the AxonIQ Console UI.")
+            }
+        }
+
         if (processor is TrackingEventProcessor) {
-            logger.info("Your TrackingEventProcessor ${processor.name} is being load-balanced. This can cause interruptions due to the long waits. Read the information in the AxonIQ Console UI.")
             try {
                 removeReleaseDeadlineForTrackingProcoessor(processor, segmentId)
             }catch (e: Exception) {
@@ -121,6 +147,13 @@ class EventProcessorManager(
             } catch (e: Exception) {
                 logger.warn("Was unable to trigger coordination task with immediate claim for the PooledStreamingEventProcessor", e)
             }
+        }
+    }
+
+    private fun logIfTimeExpired(block: () -> Unit) {
+        if(Instant.now().isAfter(lastLogForOldVersion.plusSeconds(120))) {
+            block()
+            lastLogForOldVersion = Instant.now()
         }
     }
 
