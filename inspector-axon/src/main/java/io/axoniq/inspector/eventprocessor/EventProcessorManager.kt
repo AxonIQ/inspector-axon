@@ -25,6 +25,7 @@ import org.axonframework.eventhandling.StreamingEventProcessor
 import org.axonframework.eventhandling.TrackingEventProcessor
 import org.axonframework.eventhandling.pooled.PooledStreamingEventProcessor
 import org.slf4j.LoggerFactory
+import java.time.Instant
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicReference
 
@@ -45,7 +46,6 @@ class EventProcessorManager(
     fun releaseSegment(processorName: String, segmentId: Int) {
         eventProcessor(processorName).releaseSegment(segmentId)
     }
-
 
     fun splitSegment(processorName: String, segmentId: Int) =
         eventProcessor(processorName)
@@ -72,18 +72,16 @@ class EventProcessorManager(
         transactionManager.executeInTransaction {
             eventProcessingConfig.tokenStore(processorName).fetchToken(processorName, segmentId)
         }
-        if (processor is TrackingEventProcessor) {
-            logger.info("You are load-balancing TrackingEventProcessor. This is very ineffective due to the long waits. Consider using PooledStreamingEventProcessor instead.")
-        } else if (processor is PooledStreamingEventProcessor) {
-            try {
-                triggerImmediateCoordinationTaskWithTokenClaim(processor)
-            } catch (e: Exception) {
-                logger.warn("Was unable to wait for segment CLAIM command due to internal error", e)
-                return false
-            }
-        }
 
-        // Wait until claimed
+        executeClaimMethodOrFallback(processor, segmentId)
+        return waitForProcessorToHaveClaimedSegment(processor, segmentId, processorName)
+    }
+
+    private fun waitForProcessorToHaveClaimedSegment(
+        processor: StreamingEventProcessor,
+        segmentId: Int,
+        processorName: String
+    ): Boolean {
         var loop = 0
         while (loop < 300) {
             Thread.sleep(100)
@@ -95,9 +93,35 @@ class EventProcessorManager(
         }
 
         logger.info("Processor [$processorName] failed to claim [$segmentId] in approx. [${loop * 100}ms].")
-
-
         return false
+    }
+
+    private fun executeClaimMethodOrFallback(processor: StreamingEventProcessor, segmentId: Int) {
+        try {
+            val claimMethod = processor.getMethod("claimSegment")
+            ReflectionUtils.ensureAccessible(claimMethod)
+            claimMethod.invoke(processor, segmentId)
+        } catch (e: Exception) {
+            logger.info("You processor is being load-balanced and you are using Axon Framework 4.8.x or earlier. Using 4.9.x or later will improve the usability and performance greatly. Read the information in the AxonIQ Console UI.")
+            executeFallback(processor, segmentId)
+        }
+    }
+
+    private fun executeFallback(processor: StreamingEventProcessor, segmentId: Int) {
+        if (processor is TrackingEventProcessor) {
+            logger.info("Your TrackingEventProcessor ${processor.name} is being load-balanced. This can cause interruptions due to the long waits. Read the information in the AxonIQ Console UI.")
+            try {
+                removeReleaseDeadlineForTrackingProcoessor(processor, segmentId)
+            }catch (e: Exception) {
+                logger.warn("Was unable to remove release deadline for the TrackingEventProcessor", e)
+            }
+        } else if (processor is PooledStreamingEventProcessor) {
+            try {
+                triggerImmediateCoordinationTaskWithTokenClaim(processor, segmentId)
+            } catch (e: Exception) {
+                logger.warn("Was unable to trigger coordination task with immediate claim for the PooledStreamingEventProcessor", e)
+            }
+        }
     }
 
     /**
@@ -105,7 +129,7 @@ class EventProcessorManager(
      * It will, using reflection, set fields of the CoordinationTask to 0 and then trigger it,
      * so it immediately checks the TokenStore whether there are tokens to pick up.
      */
-    private fun triggerImmediateCoordinationTaskWithTokenClaim(processor: StreamingEventProcessor) {
+    private fun triggerImmediateCoordinationTaskWithTokenClaim(processor: StreamingEventProcessor, segmentId: Int) {
         val coordinatorField = processor.getField("coordinator")
         val coordinator = ReflectionUtils.getFieldValue<Any>(coordinatorField, processor)
         val coordinationTaskField = coordinator.getField("coordinationTask")
@@ -117,9 +141,19 @@ class EventProcessorManager(
         val unclaimedSegmentValidationThresholdField = coordinationTask.getField("unclaimedSegmentValidationThreshold")
         ReflectionUtils.setFieldValue(unclaimedSegmentValidationThresholdField, coordinationTask, 0L)
 
+        val releasesDeadlinesField = coordinator.getField("releasesDeadlines")
+        val map = ReflectionUtils.getFieldValue<MutableMap<Int, Instant>>(releasesDeadlinesField, coordinator)
+        map.remove(segmentId)
+
         val taskMethod = coordinationTask.getMethod("scheduleImmediateCoordinationTask")
         ReflectionUtils.ensureAccessible(taskMethod)
         taskMethod.invoke(coordinationTask)
+    }
+
+    private fun removeReleaseDeadlineForTrackingProcoessor(processor: StreamingEventProcessor, segmentId: Int) {
+        val releasesDeadlinesField = processor.getField("segmentReleaseDeadlines")
+        val map = ReflectionUtils.getFieldValue<MutableMap<Int, Instant>>(releasesDeadlinesField, processor)
+        map.remove(segmentId)
     }
 
     private fun eventProcessor(processorName: String): StreamingEventProcessor =
