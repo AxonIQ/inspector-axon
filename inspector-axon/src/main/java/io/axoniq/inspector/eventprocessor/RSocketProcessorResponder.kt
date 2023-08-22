@@ -76,12 +76,12 @@ open class RSocketProcessorResponder(
     }
 
     private fun handleStatusQuery(): ProcessorStatusReport {
-        logger.info("Handling Inspector Axon STATUS command")
+        logger.debug("Handling Inspector Axon STATUS query")
         return processorReportCreator.createReport()
     }
 
     private fun handleSegmentQuery(processor: String): SegmentOverview {
-        logger.info("Handling Inspector Axon SEGMENTS command")
+        logger.debug("Handling Inspector Axon SEGMENTS query for processor [{}]", processor)
         return processorReportCreator.createSegmentOverview(processor)
     }
 
