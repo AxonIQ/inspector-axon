@@ -69,7 +69,7 @@ class RSocketHandlerRegistrar(
         matchingHandler: PayloadlessRegisteredRsocketMessageHandler,
         route: String,
     ): Any {
-        logger.info("Received Inspector Axon message for route [$route] without payload")
+        logger.debug("Received Inspector Axon message for route [$route]")
         return matchingHandler.handler.invoke()
     }
 
@@ -79,7 +79,7 @@ class RSocketHandlerRegistrar(
         route: String,
     ): Any {
         val decodedPayload = encodingStrategy.decode(payload, matchingHandler.payloadType)
-        logger.info("Received Inspector Axon message for route [$route] with payload: [{}]", decodedPayload)
+        logger.debug("Received Inspector Axon message for route [$route] with payload: [{}]", decodedPayload)
         return matchingHandler.handler.invoke(decodedPayload)
     }
 
