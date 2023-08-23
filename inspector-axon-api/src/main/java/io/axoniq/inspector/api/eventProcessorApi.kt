@@ -48,7 +48,7 @@ data class ProcessingGroupStatus(
 data class SegmentStatus(
     val segment: Int,
     val mergeableSegment: Int,
-    val mask: Int,
+    val mask: Int = -1,
     val oneOf: Int,
     val caughtUp: Boolean,
     val error: Boolean,
