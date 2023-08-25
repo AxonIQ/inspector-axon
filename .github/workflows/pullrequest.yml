@@ -46,7 +46,7 @@ jobs:
         if: ${{ success() && matrix.sonar-enabled && github.event.pull_request.head.repo.full_name == github.repository }}
         run: |
           ./mvnw -B -Dstyle.color=always sonar:sonar \
-          -Dsonar.projectKey=InspectorConnector \
+          -Dsonar.projectKey=AxonIQ_inspector-axon2 \
           -Dsonar.organization=axoniq \
           -Dsonar.host.url=https://sonarcloud.io \
           -Dsonar.login=${{ secrets.SONAR_TOKEN }}
