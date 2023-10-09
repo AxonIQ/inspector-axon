@@ -10,13 +10,7 @@ updates:
       - "Type: Dependency Upgrade"
       - "Priority 1: Must"
     reviewers:
-      - "gklijs"
-      - "CodeDrivenMitch"
-      - "sandjelkovic"
-      - "smcvb"
-      - "stefanmirkovic"
-      - "talisman027"
-
+      - "AxonIQ/axoniq-console"
   - package-ecosystem: maven
     directory: "/"
     schedule:
@@ -26,9 +20,4 @@ updates:
       - "Type: Dependency Upgrade"
       - "Priority 1: Must"
     reviewers:
-      - "gklijs"
-      - "CodeDrivenMitch"
-      - "sandjelkovic"
-      - "smcvb"
-      - "stefanmirkovic"
-      - "talisman027"
+      - "AxonIQ/axoniq-console"
