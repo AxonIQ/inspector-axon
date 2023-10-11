@@ -1,5 +1,13 @@
 # Inspector Axon
 
+> **Please use AxonIQ Console instead**
+>
+> This client has been surpassed by [AxonIQ Console](https://console.axoniq.io/).
+> Note that _this_ connector still lives on under the [Console Framework Client](https://github.com/AxonIQ/console-framework-client) repository.
+> 
+> We thus recommend you switch over from Inspector Axon to AxonIQ Console.
+> Thanks for your understanding.
+
 [![Maven Central](https://maven-badges.herokuapp.com/maven-central/io.axoniq.inspector/inspector-axon/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.axoniq.inspector/inspector-axon)
 
 Inspector Axon superpowers your Axon Framework application with advanced monitoring and enabling easy access to actions
