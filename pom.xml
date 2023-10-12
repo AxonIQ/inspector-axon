@@ -31,7 +31,7 @@
     </modules>
     <packaging>pom</packaging>
 
-    <name>AxonIQ - Inspector Axon Parent</name>
+    <name>AxonIQ - Inspector Axon Client</name>
     <description>Project containing several connectors to Inspector Axon</description>
 
     <inceptionYear>2022</inceptionYear>
